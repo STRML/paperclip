@@ -1353,7 +1353,7 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
   const [transcriptOpen, setTranscriptOpen] = useState(true);
 
   const isLiveRun = run.status === "running" || run.status === "queued";
-  const { data: runEvents } = useQuery({
+  const { data: runEvents, error: runEventsError } = useQuery({
     queryKey: ["run-events", run.id],
     queryFn: () => heartbeatsApi.events(run.id, 0, 200),
     refetchInterval: isLiveRun ? 5000 : false,
@@ -1776,6 +1776,13 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Events fetch error */}
+      {runEventsError && (
+        <div className="border border-destructive/40 bg-destructive/10 rounded-lg px-4 py-2 text-xs text-destructive">
+          Failed to load events: {runEventsError instanceof Error ? runEventsError.message : "Unknown error"}
         </div>
       )}
 
