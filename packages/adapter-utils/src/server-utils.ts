@@ -212,6 +212,9 @@ export async function runChildProcess(
 
   return new Promise<RunProcessResult>((resolve, reject) => {
     const mergedEnv = ensurePathInEnv({ ...process.env, ...opts.env });
+    // Prevent "nested session" errors when the paperclip server is itself running
+    // inside a Claude Code session and spawns a claude subprocess.
+    delete mergedEnv.CLAUDECODE;
     const child = spawn(command, args, {
       cwd: opts.cwd,
       env: mergedEnv,
