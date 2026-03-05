@@ -36,6 +36,7 @@ import {
 } from "@paperclipai/adapter-openclaw-gateway";
 import { listCodexModels } from "./codex-models.js";
 import { listCursorModels } from "./cursor-models.js";
+import { listClaudeModels } from "./claude-models.js";
 import {
   execute as piExecute,
   testEnvironment as piTestEnvironment,
@@ -54,6 +55,7 @@ const claudeLocalAdapter: ServerAdapterModule = {
   testEnvironment: claudeTestEnvironment,
   sessionCodec: claudeSessionCodec,
   models: claudeModels,
+  listModels: listClaudeModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: claudeAgentConfigurationDoc,
 };
