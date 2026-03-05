@@ -18,6 +18,7 @@ import {
   removeMaintainerOnlySkillSymlinks,
   renderTemplate,
   joinPromptSections,
+  buildWakeContextSuffix,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
 import { parseCodexJsonl, isCodexUnknownSessionError } from "./parse.js";
@@ -397,7 +398,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     renderedBootstrapPrompt,
     sessionHandoffNote,
     renderedPrompt,
-  ]);
+  ]) + buildWakeContextSuffix(context);
   const promptMetrics = {
     promptChars: prompt.length,
     instructionsChars,

@@ -122,6 +122,34 @@ export function joinPromptSections(
     .join(separator);
 }
 
+/**
+ * Builds a wake context block appended to the rendered prompt so agents always
+ * know why they were triggered — regardless of whether a prompt template
+ * references context variables explicitly.
+ */
+export function buildWakeContextSuffix(context: Record<string, unknown>): string {
+  const readStr = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const taskId = readStr(context.taskId) ?? readStr(context.issueId);
+  const wakeReason = readStr(context.wakeReason);
+  const wakeCommentId = readStr(context.wakeCommentId) ?? readStr(context.commentId);
+  const approvalId = readStr(context.approvalId);
+  const approvalStatus = readStr(context.approvalStatus);
+  const linkedIssueIds = Array.isArray(context.issueIds)
+    ? context.issueIds.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    : [];
+
+  const lines: string[] = [];
+  if (taskId) lines.push(`task_id: ${taskId}`);
+  if (wakeReason) lines.push(`wake_reason: ${wakeReason}`);
+  if (wakeCommentId) lines.push(`wake_comment_id: ${wakeCommentId}`);
+  if (approvalId) lines.push(`approval_id: ${approvalId}`);
+  if (approvalStatus) lines.push(`approval_status: ${approvalStatus}`);
+  if (linkedIssueIds.length > 0) lines.push(`linked_issue_ids: ${linkedIssueIds.join(", ")}`);
+
+  if (lines.length === 0) return "";
+  return `\n\n[Paperclip wake context]\n${lines.join("\n")}`;
+}
+
 export function redactEnvForLogs(env: Record<string, string>): Record<string, string> {
   const redacted: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
