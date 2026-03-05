@@ -1505,6 +1505,15 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
 
   const [summaryHeight, setSummaryHeight] = useState(() => Math.round((window.innerHeight - 12 * 16) * 0.5));
   const dragStartRef = useRef<{ y: number; h: number } | null>(null);
+  const dragMoveRef = useRef<((ev: MouseEvent) => void) | null>(null);
+  const dragUpRef = useRef<(() => void) | null>(null);
+  // Clean up drag listeners if the component unmounts mid-drag.
+  useEffect(() => {
+    return () => {
+      if (dragMoveRef.current) document.removeEventListener("mousemove", dragMoveRef.current);
+      if (dragUpRef.current) document.removeEventListener("mouseup", dragUpRef.current);
+    };
+  }, []);
   const onDragMouseDown = (e: React.MouseEvent) => {
     dragStartRef.current = { y: e.clientY, h: summaryHeight };
     const onMove = (ev: MouseEvent) => {
@@ -1513,9 +1522,13 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
     };
     const onUp = () => {
       dragStartRef.current = null;
+      dragMoveRef.current = null;
+      dragUpRef.current = null;
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
+    dragMoveRef.current = onMove;
+    dragUpRef.current = onUp;
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
   };
@@ -1930,6 +1943,9 @@ function LogViewer({ run, adapterType, transcriptOpen, onToggleTranscript }: { r
     // Validate the cache: if the element has been detached (e.g., transcript
     // was collapsed and reopened), recompute rather than returning a stale ref.
     if (cached && cached !== window && !(cached as Element).isConnected) {
+      scrollContainerRef.current = null;
+    } else if (cached === window && terminalBodyRef.current) {
+      // window was cached before the terminal body mounted; prefer the body now.
       scrollContainerRef.current = null;
     } else if (cached) {
       return cached;
