@@ -128,7 +128,8 @@ export function joinPromptSections(
  * references context variables explicitly.
  */
 export function buildWakeContextSuffix(context: Record<string, unknown>): string {
-  const readStr = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const readStr = (v: unknown) =>
+    typeof v === "string" && v.trim() ? v.trim().replace(/[\r\n]+/g, " ") : null;
   const taskId = readStr(context.taskId) ?? readStr(context.issueId);
   const wakeReason = readStr(context.wakeReason);
   const wakeCommentId = readStr(context.wakeCommentId) ?? readStr(context.commentId);
