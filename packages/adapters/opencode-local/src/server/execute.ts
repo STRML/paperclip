@@ -14,6 +14,7 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   renderTemplate,
+  buildWakeContextSuffix,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
 import { DEFAULT_OPENCODE_LOCAL_MODEL } from "../index.js";
@@ -321,7 +322,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     run: { id: runId, source: "on_demand" },
     context,
   });
-  const prompt = `${instructionsPrefix}${renderedPrompt}`;
+  const prompt = `${instructionsPrefix}${renderedPrompt}${buildWakeContextSuffix(context)}`;
 
   const buildArgs = (resumeSessionId: string | null) => {
     const args = ["run", "--format", "json"];
