@@ -60,6 +60,7 @@ import {
   agentConfigurationDoc as hermesAgentConfigurationDoc,
   models as hermesModels,
 } from "hermes-paperclip-adapter";
+import { listClaudeModels } from "./claude-models.js";
 import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
 
@@ -69,6 +70,7 @@ const claudeLocalAdapter: ServerAdapterModule = {
   testEnvironment: claudeTestEnvironment,
   sessionCodec: claudeSessionCodec,
   models: claudeModels,
+  listModels: listClaudeModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: claudeAgentConfigurationDoc,
 };
