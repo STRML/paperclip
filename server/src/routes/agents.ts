@@ -39,6 +39,17 @@ import {
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
 import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
 
+/**
+ * Returns true only when the run's contextSnapshot.issueId matches the given issueId.
+ * Used to guard the active-run fallback from misattributing runs across issues.
+ */
+export function isRunForIssue(run: { contextSnapshot: unknown } | null, issueId: string): boolean {
+  if (!run) return false;
+  const snapshot = run.contextSnapshot;
+  if (typeof snapshot !== "object" || snapshot === null) return false;
+  return (snapshot as Record<string, unknown>).issueId === issueId;
+}
+
 export function agentRoutes(db: Db) {
   const DEFAULT_INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
     claude_local: "instructionsFilePath",
@@ -1366,11 +1377,9 @@ export function agentRoutes(db: Db) {
     }
 
     if (!run && issue.assigneeAgentId && issue.status === "in_progress") {
-      const candidateRun = await heartbeat.getActiveRunForAgent(issue.assigneeAgentId);
-      const candidateContext = asRecord(candidateRun?.contextSnapshot);
-      const candidateIssueId = asNonEmptyString(candidateContext?.issueId);
-      if (candidateRun && candidateIssueId === issue.id) {
-        run = candidateRun;
+      const agentRun = await heartbeat.getActiveRunForAgent(issue.assigneeAgentId);
+      if (isRunForIssue(agentRun, issue.id)) {
+        run = agentRun;
       }
     }
     if (!run) {
