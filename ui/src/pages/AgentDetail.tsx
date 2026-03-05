@@ -1673,6 +1673,17 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
                 )}
               </div>
             )}
+            {run.errorCode === "error_max_turns" && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-3 py-2 space-y-1">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Turn limit reached</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  This run ended because the agent hit its <strong>maxTurnsPerRun</strong> cap. The task may be incomplete — this is not a connection issue.
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  To fix: open the agent config and raise <code className="font-mono bg-amber-100 dark:bg-amber-900 px-0.5 rounded">maxTurnsPerRun</code>, or set it to <code className="font-mono bg-amber-100 dark:bg-amber-900 px-0.5 rounded">0</code> for unlimited turns.
+                </p>
+              </div>
+            )}
             {hasNonZeroExit && (
               <div className="text-xs text-red-600 dark:text-red-400">
                 Exit code {run.exitCode}
