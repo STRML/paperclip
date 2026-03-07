@@ -109,3 +109,17 @@ export const upsertIssueDocumentSchema = z.object({
 
 export type IssueDocumentFormat = z.infer<typeof issueDocumentFormatSchema>;
 export type UpsertIssueDocument = z.infer<typeof upsertIssueDocumentSchema>;
+
+const SCHEDULE_WAKE_MIN_DELAY_MS = 10_000;
+const SCHEDULE_WAKE_MAX_DELAY_MS = 24 * 60 * 60 * 1000;
+
+export const scheduleIssueWakeSchema = z.object({
+  delayMs: z
+    .number()
+    .int()
+    .min(SCHEDULE_WAKE_MIN_DELAY_MS)
+    .max(SCHEDULE_WAKE_MAX_DELAY_MS),
+  reason: z.string().optional().nullable(),
+});
+
+export type ScheduleIssueWake = z.infer<typeof scheduleIssueWakeSchema>;

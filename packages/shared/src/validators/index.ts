@@ -69,6 +69,7 @@ export {
   issueDocumentFormatSchema,
   issueDocumentKeySchema,
   upsertIssueDocumentSchema,
+  scheduleIssueWakeSchema,
   type CreateIssue,
   type CreateIssueLabel,
   type UpdateIssue,
@@ -79,6 +80,7 @@ export {
   type CreateIssueAttachmentMetadata,
   type IssueDocumentFormat,
   type UpsertIssueDocument,
+  type ScheduleIssueWake,
 } from "./issue.js";
 
 export {
