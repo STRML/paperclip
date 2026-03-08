@@ -127,6 +127,87 @@ export function redactEnvForLogs(env: Record<string, string>): Record<string, st
   return redacted;
 }
 
+/**
+ * Build a short text block summarising the wake context for an agent run.
+ * Appended to the agent's prompt so it can skip redundant API discovery calls
+ * (e.g. GET /api/agents/me, GET /api/issues/{id}).
+ *
+ * Includes agent identity, the literal API URL, and task summary when
+ * available — eliminating startup overhead per heartbeat.
+ */
+export function buildWakeContextSuffix(
+  context: Record<string, unknown>,
+  env: Record<string, string>,
+): string {
+  const str = (key: string) => {
+    const v = context[key];
+    return typeof v === "string" && v.trim().length > 0 ? v.trim() : null;
+  };
+  const obj = (key: string): Record<string, unknown> | null => {
+    const v = context[key];
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
+  };
+
+  const taskId = str("taskId") ?? str("issueId");
+  const reason = str("wakeReason");
+  if (!taskId && !reason) return "";
+
+  const lines: string[] = ["", "[Paperclip wake context]"];
+  if (taskId) lines.push(`task_id: ${taskId}`);
+  if (reason) lines.push(`wake_reason: ${reason}`);
+  const commentId = str("wakeCommentId") ?? str("commentId");
+  if (commentId) lines.push(`wake_comment_id: ${commentId}`);
+  const approvalId = str("approvalId");
+  if (approvalId) lines.push(`approval_id: ${approvalId}`);
+  const approvalStatus = str("approvalStatus");
+  if (approvalStatus) lines.push(`approval_status: ${approvalStatus}`);
+  const linkedIssueIds = Array.isArray(context.issueIds)
+    ? context.issueIds.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    : [];
+  if (linkedIssueIds.length > 0) lines.push(`linked_issue_ids: ${linkedIssueIds.join(",")}`);
+
+  // Inject the literal API URL so agents don't need to expand $PAPERCLIP_API_URL
+  // (which fails in some shells like fish).
+  const apiUrl = env.PAPERCLIP_API_URL;
+  if (apiUrl) lines.push(`api_url: ${apiUrl}`);
+
+  // Inject agent identity so the agent can skip GET /api/agents/me.
+  const identity = obj("agentIdentity");
+  if (identity) {
+    const name = typeof identity.name === "string" ? identity.name : null;
+    const role = typeof identity.role === "string" ? identity.role : null;
+    const title = typeof identity.title === "string" ? identity.title : null;
+    if (name) lines.push(`agent_name: ${name}`);
+    if (role) lines.push(`agent_role: ${role}`);
+    if (title) lines.push(`agent_title: ${title}`);
+  }
+
+  // Inject task summary so the agent can skip GET /api/issues/{id}.
+  const task = obj("taskSummary");
+  if (task) {
+    const identifier = typeof task.identifier === "string" ? task.identifier : null;
+    const taskTitle = typeof task.title === "string" ? task.title : null;
+    const description = typeof task.description === "string" ? task.description : null;
+    const status = typeof task.status === "string" ? task.status : null;
+    if (identifier || taskTitle) {
+      lines.push("");
+      lines.push("[Task summary]");
+      if (identifier) lines.push(`identifier: ${identifier}`);
+      if (taskTitle) lines.push(`title: ${taskTitle}`);
+      if (status) lines.push(`status: ${status}`);
+      if (description) {
+        // Cap description to avoid bloating the prompt
+        const trimmed = description.length > 500 ? description.slice(0, 500) + "..." : description;
+        lines.push(`description: ${trimmed}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export function buildPaperclipEnv(agent: { id: string; companyId: string }): Record<string, string> {
   const resolveHostForUrl = (rawHost: string): string => {
     const host = rawHost.trim();
