@@ -494,7 +494,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     const classifiedErrorCode = (() => {
       if (loginMeta.requiresLogin) return "claude_auth_required";
-      if ((proc.exitCode ?? 0) === 0 && !isRateLimited) return null;
+      if ((proc.exitCode ?? 0) === 0 && !isRateLimited && !isMaxTurns) return null;
       if (isMaxTurns) return "max_turns_exceeded";
       if (isRateLimited) return "rate_limited";
       if (isProcessKilled) return "process_killed";
