@@ -1,0 +1,19 @@
+Codemap Generation Report
+Generated: 2026-03-05
+Status: INITIAL (no previous version to diff)
+
+Files created:
+  codemaps/architecture.md  - Overall architecture, monorepo structure, deployment modes
+  codemaps/backend.md       - Server routes, services, adapters, CLI commands
+  codemaps/frontend.md      - React pages, components, context providers, API layer
+  codemaps/data.md          - Database tables, relationships, config schema
+
+Source files scanned:
+  server/src/              - 87 files (routes, services, adapters, middleware, auth, storage, secrets)
+  ui/src/                  - 121 files (pages, components, api, context, hooks, lib, adapters)
+  cli/src/                 - 48 files (commands, checks, config, prompts, utils)
+  packages/db/src/         - 62 files (schema tables, migrations)
+  packages/shared/src/     - 36 files (types, validators, config-schema)
+  packages/adapter-utils/  - 3 files
+
+Diff %: N/A (first generation)

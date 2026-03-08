@@ -10,6 +10,7 @@ import {
   parseObject,
   buildPaperclipEnv,
   joinPromptSections,
+  buildWakeContextSuffix,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
@@ -263,7 +264,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     renderedBootstrapPrompt,
     sessionHandoffNote,
     renderedPrompt,
-  ]) + buildWakeContextSuffix(context);
+  ]) + buildWakeContextSuffix(context, env);
   const promptMetrics = {
     promptChars: prompt.length,
     instructionsChars: instructionsPrefix.length,

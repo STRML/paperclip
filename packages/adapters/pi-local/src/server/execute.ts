@@ -10,6 +10,7 @@ import {
   parseObject,
   buildPaperclipEnv,
   joinPromptSections,
+  buildWakeContextSuffix,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
@@ -294,7 +295,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     renderedBootstrapPrompt,
     sessionHandoffNote,
     renderedHeartbeatPrompt,
-  ]);
+  ]) + buildWakeContextSuffix(context, env);
   const promptMetrics = {
     systemPromptChars: renderedSystemPromptExtension.length,
     promptChars: userPrompt.length,
