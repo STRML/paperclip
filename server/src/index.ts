@@ -516,7 +516,7 @@ if (config.heartbeatSchedulerEnabled) {
       .catch((err) => {
         logger.error({ err }, "periodic heartbeat recovery failed");
       });
-  }, config.heartbeatSchedulerIntervalMs);
+  }, config.heartbeatSchedulerIntervalMs).unref();
 }
 
 if (config.databaseBackupEnabled) {
@@ -564,7 +564,7 @@ if (config.databaseBackupEnabled) {
   );
   setInterval(() => {
     void runScheduledBackup();
-  }, backupIntervalMs);
+  }, backupIntervalMs).unref();
 }
 
 server.listen(listenPort, config.host, () => {
@@ -616,22 +616,40 @@ server.listen(listenPort, config.host, () => {
   }
 });
 
-if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
-  const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
-    logger.info({ signal }, "Stopping embedded PostgreSQL");
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
+  logger.info({ signal }, "Shutting down server");
+
+  // Force-exit safety valve in case graceful shutdown hangs
+  const forceExitTimer = setTimeout(() => {
+    logger.error("Graceful shutdown timed out; forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  } catch (err) {
+    logger.error({ err }, "Error closing HTTP server");
+  }
+
+  if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
     try {
-      await embeddedPostgres?.stop();
+      await embeddedPostgres.stop();
     } catch (err) {
       logger.error({ err }, "Failed to stop embedded PostgreSQL cleanly");
-    } finally {
-      process.exit(0);
     }
-  };
+  }
 
-  process.once("SIGINT", () => {
-    void shutdown("SIGINT");
-  });
-  process.once("SIGTERM", () => {
-    void shutdown("SIGTERM");
-  });
-}
+  process.exit(0);
+};
+
+process.once("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+process.once("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
