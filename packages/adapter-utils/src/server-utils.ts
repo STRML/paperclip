@@ -190,10 +190,13 @@ export function buildWakeContextSuffix(
   // Inject task summary so the agent can skip GET /api/issues/{id}.
   const task = obj("taskSummary");
   if (task) {
-    const identifier = typeof task.identifier === "string" ? task.identifier : null;
-    const taskTitle = typeof task.title === "string" ? task.title : null;
-    const description = typeof task.description === "string" ? task.description : null;
-    const status = typeof task.status === "string" ? task.status : null;
+    // Sanitize newlines to prevent prompt injection from user-controlled fields
+    // (e.g. issue titles/descriptions synced from external systems).
+    const sanitize = (s: string) => s.replace(/\r?\n/g, " ");
+    const identifier = typeof task.identifier === "string" ? sanitize(task.identifier) : null;
+    const taskTitle = typeof task.title === "string" ? sanitize(task.title) : null;
+    const description = typeof task.description === "string" ? sanitize(task.description) : null;
+    const status = typeof task.status === "string" ? sanitize(task.status) : null;
     if (identifier || taskTitle) {
       lines.push("");
       lines.push("[Task summary]");
