@@ -1,7 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 5000;
 
 export interface ShutdownDeps {
-  server: { close: (cb: (err?: Error) => void) => void };
+  server: { close: (cb: (err?: Error) => void) => void; closeAllConnections?: () => void };
   logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
   embeddedPostgres: { stop: () => Promise<void> } | null;
   embeddedPostgresStartedByThisProcess: boolean;
@@ -20,6 +20,7 @@ export function createShutdown(deps: ShutdownDeps) {
     forceExitTimer.unref();
 
     try {
+      deps.server.closeAllConnections?.();
       await new Promise<void>((resolve, reject) => {
         deps.server.close((err) => (err ? reject(err) : resolve()));
       });

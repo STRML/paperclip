@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { createShutdown } from "../shutdown.js";
 
 function makeDeps(overrides: Partial<Parameters<typeof createShutdown>[0]> = {}) {
@@ -78,5 +78,49 @@ describe("createShutdown", () => {
 
     expect(deps.logger.error).toHaveBeenCalledWith({ err: closeError }, "Error closing HTTP server");
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it("calls process.exit(1) when shutdown times out", async () => {
+    vi.useFakeTimers();
+    // Use a non-throwing mock so the timer callback completes cleanly
+    exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any);
+    let closeCallback: ((err?: Error) => void) | undefined;
+    const deps = makeDeps({
+      server: {
+        close: vi.fn((cb: (err?: Error) => void) => {
+          closeCallback = cb; // capture but never call
+        }),
+      },
+      timeoutMs: 100,
+    });
+    const shutdown = createShutdown(deps);
+
+    const promise = shutdown("SIGINT");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(deps.logger.error).toHaveBeenCalledWith("Graceful shutdown timed out; forcing exit");
+
+    // Resolve the hanging close to clean up the promise
+    closeCallback?.();
+    await promise;
+
+    vi.useRealTimers();
+  });
+
+  it("calls closeAllConnections when available", async () => {
+    exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exit");
+    });
+    const closeAllConnections = vi.fn();
+    const deps = makeDeps({
+      server: { close: vi.fn((cb: (err?: Error) => void) => cb()), closeAllConnections },
+    });
+    const shutdown = createShutdown(deps);
+
+    await expect(shutdown("SIGINT")).rejects.toThrow("exit");
+
+    expect(closeAllConnections).toHaveBeenCalledOnce();
+    expect(deps.server.close).toHaveBeenCalledOnce();
   });
 });
