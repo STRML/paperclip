@@ -67,12 +67,13 @@ export function _resetSkillsDirCache() {
 export async function buildSkillsDir(): Promise<string> {
   const skillsDir = await resolvePaperclipSkillsDir();
 
-  // Build a fingerprint from the sorted list of skill directory names so we
-  // can detect when the set of skills changes and need to rebuild.
+  // Read skill directory entries once and reuse for both fingerprinting and
+  // symlink creation to avoid a redundant readdir + TOCTOU window.
   let fingerprint = "";
+  let skillEntries: import("node:fs").Dirent[] = [];
   if (skillsDir) {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    fingerprint = entries
+    skillEntries = await fs.readdir(skillsDir, { withFileTypes: true });
+    fingerprint = skillEntries
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
       .sort()
@@ -88,15 +89,12 @@ export async function buildSkillsDir(): Promise<string> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-skills-"));
   const target = path.join(tmp, ".claude", "skills");
   await fs.mkdir(target, { recursive: true });
-  if (skillsDir) {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        await fs.symlink(
-          path.join(skillsDir, entry.name),
-          path.join(target, entry.name),
-        );
-      }
+  for (const entry of skillEntries) {
+    if (entry.isDirectory()) {
+      await fs.symlink(
+        path.join(skillsDir!, entry.name),
+        path.join(target, entry.name),
+      );
     }
   }
 
