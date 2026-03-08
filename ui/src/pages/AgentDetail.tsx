@@ -1296,7 +1296,8 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
       queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
     },
   });
-  const canResumeLostRun = run.errorCode === "process_lost" && run.status === "failed";
+  const resumableErrorCodes = ["process_lost", "rate_limited"];
+  const canResumeLostRun = resumableErrorCodes.includes(run.errorCode ?? "") && run.status === "failed";
   const resumePayload = useMemo(() => {
     const payload: Record<string, unknown> = {
       resumeFromRunId: run.id,
@@ -1537,6 +1538,21 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
               <div className="text-xs">
                 <span className="text-red-600 dark:text-red-400">{run.error}</span>
                 {run.errorCode && <span className="text-muted-foreground ml-1">({run.errorCode})</span>}
+              </div>
+            )}
+            {run.errorCode === "rate_limited" && (
+              <div className="text-xs text-amber-600 dark:text-amber-400">
+                The Anthropic API rate limit was hit. The agent can be resumed once the rate limit window expires.
+              </div>
+            )}
+            {run.errorCode === "max_turns_exceeded" && (
+              <div className="text-xs text-amber-600 dark:text-amber-400">
+                The agent hit the maximum number of conversation turns. Consider increasing maxTurnsPerRun or breaking work into smaller tasks.
+              </div>
+            )}
+            {run.errorCode === "process_killed" && (
+              <div className="text-xs text-amber-600 dark:text-amber-400">
+                The agent process was terminated by signal {run.signal ?? "unknown"}. This may indicate an OOM kill or external signal.
               </div>
             )}
             {run.errorCode === "claude_auth_required" && adapterType === "claude_local" && (
