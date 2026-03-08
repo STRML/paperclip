@@ -17,9 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, ArrowDown } from "lucide-react";
+import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, ArrowDown, FolderOpen } from "lucide-react";
 import { KanbanBoard } from "./KanbanBoard";
-import type { Issue } from "@paperclipai/shared";
+import type { Issue, Project } from "@paperclipai/shared";
 
 /* ── Helpers ── */
 
@@ -39,7 +39,7 @@ export type IssueViewState = {
   labels: string[];
   sortField: "status" | "priority" | "title" | "created" | "updated";
   sortDir: "asc" | "desc";
-  groupBy: "status" | "priority" | "assignee" | "none";
+  groupBy: "status" | "priority" | "assignee" | "project" | "none";
   viewMode: "list" | "board";
   collapsedGroups: string[];
 };
@@ -138,6 +138,7 @@ interface IssuesListProps {
   isLoading?: boolean;
   error?: Error | null;
   agents?: Agent[];
+  projects?: Project[];
   liveIssueIds?: Set<string>;
   projectId?: string;
   viewStateKey: string;
@@ -152,6 +153,7 @@ export function IssuesList({
   isLoading,
   error,
   agents,
+  projects,
   liveIssueIds,
   projectId,
   viewStateKey,
@@ -219,6 +221,17 @@ export function IssuesList({
     return agents.find((a) => a.id === id)?.name ?? null;
   }, [agents]);
 
+  const projectMap = useMemo(() => {
+    const map = new Map<string, Project>();
+    for (const p of projects ?? []) map.set(p.id, p);
+    return map;
+  }, [projects]);
+
+  const projectName = useCallback((id: string | null) => {
+    if (!id) return null;
+    return projectMap.get(id)?.name ?? null;
+  }, [projectMap]);
+
   const filtered = useMemo(() => {
     const sourceIssues = normalizedIssueSearch.length > 0 ? searchedIssues : issues;
     const filteredByControls = applyFilters(sourceIssues, viewState);
@@ -267,6 +280,14 @@ export function IssuesList({
         .filter((p) => groups[p]?.length)
         .map((p) => ({ key: p, label: statusLabel(p), items: groups[p]! }));
     }
+    if (viewState.groupBy === "project") {
+      const groups = groupBy(filtered, (i) => i.projectId ?? "__no_project");
+      return Object.keys(groups).map((key) => ({
+        key,
+        label: key === "__no_project" ? "No Project" : (projectName(key) ?? key.slice(0, 8)),
+        items: groups[key]!,
+      }));
+    }
     // assignee
     const groups = groupBy(filtered, (i) => i.assigneeAgentId ?? "__unassigned");
     return Object.keys(groups).map((key) => ({
@@ -274,7 +295,7 @@ export function IssuesList({
       label: key === "__unassigned" ? "Unassigned" : (agentName(key) ?? key.slice(0, 8)),
       items: groups[key]!,
     }));
-  }, [filtered, viewState.groupBy, agents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filtered, viewState.groupBy, agents, projectName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const newIssueDefaults = (groupKey?: string) => {
     const defaults: Record<string, string> = {};
@@ -282,6 +303,7 @@ export function IssuesList({
     if (groupKey) {
       if (viewState.groupBy === "status") defaults.status = groupKey;
       else if (viewState.groupBy === "priority") defaults.priority = groupKey;
+      else if (viewState.groupBy === "project" && groupKey !== "__no_project") defaults.projectId = groupKey;
       else if (viewState.groupBy === "assignee" && groupKey !== "__unassigned") defaults.assigneeAgentId = groupKey;
     }
     return defaults;
@@ -533,6 +555,7 @@ export function IssuesList({
                     ["status", "Status"],
                     ["priority", "Priority"],
                     ["assignee", "Assignee"],
+                    ["project", "Project"],
                     ["none", "None"],
                   ] as const).map(([value, label]) => (
                     <button
@@ -641,6 +664,12 @@ export function IssuesList({
                         <span className="text-[10px] text-muted-foreground">+{(issue.labels ?? []).length - 3}</span>
                       )}
                     </div>
+                  )}
+                  {issue.projectId && projectName(issue.projectId) && (
+                    <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0 max-w-[140px]">
+                      <FolderOpen className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{projectName(issue.projectId)}</span>
+                    </span>
                   )}
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
                     {liveIssueIds?.has(issue.id) && (
