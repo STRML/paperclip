@@ -1225,7 +1225,7 @@ export function issueService(db: Db) {
         const camelSplit = normalizeAgentUrlKey(raw.replace(/([a-z])([A-Z])/g, "$1-$2"));
         if (camelSplit && camelSplit !== urlKey) tokens.add(camelSplit);
       }
-      const rows = await db.select({ id: agents.id, name: agents.name, urlKey: agents.urlKey })
+      const rows = await db.select({ id: agents.id, name: agents.name })
         .from(agents).where(eq(agents.companyId, companyId));
       const bodyLower = stripped.toLowerCase();
       return rows.filter(a => {
