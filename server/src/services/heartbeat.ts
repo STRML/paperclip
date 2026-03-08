@@ -962,7 +962,7 @@ export function heartbeatService(db: Db) {
         and(
           eq(agentWakeupRequests.status, "promoting"),
           // Only reap rows older than 2 minutes to avoid racing with an active promotion
-          sql`updated_at < ${new Date(now.getTime() - 120_000)}`,
+          sql`updated_at < ${new Date(now.getTime() - 120_000).toISOString()}`,
         ),
       )
       .returning({ id: agentWakeupRequests.id });
@@ -2223,7 +2223,7 @@ export function heartbeatService(db: Db) {
       SET status = 'promoting', updated_at = NOW()
       WHERE id IN (
         SELECT id FROM agent_wakeup_requests
-        WHERE status = 'scheduled' AND scheduled_for <= ${now}
+        WHERE status = 'scheduled' AND scheduled_for <= ${now.toISOString()}
         ORDER BY scheduled_for
         LIMIT 50
         FOR UPDATE SKIP LOCKED
