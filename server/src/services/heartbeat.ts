@@ -1135,6 +1135,10 @@ export function heartbeatService(db: Db) {
             .select({
               assigneeAgentId: issues.assigneeAgentId,
               assigneeAdapterOverrides: issues.assigneeAdapterOverrides,
+              identifier: issues.identifier,
+              title: issues.title,
+              description: issues.description,
+              status: issues.status,
             })
             .from(issues)
             .where(and(eq(issues.id, issueId), eq(issues.companyId, agent.companyId)))
@@ -1193,6 +1197,25 @@ export function heartbeatService(db: Db) {
       if (resolvedWorkspace.projectId && !readNonEmptyString(context.projectId)) {
         context.projectId = resolvedWorkspace.projectId;
       }
+
+      // Enrich context with agent identity and task summary so adapters can
+      // inject them directly into the LLM prompt, eliminating the "who am I?"
+      // API discovery phase that wastes 30-60s of agent startup time.
+      context.agentIdentity = {
+        name: agent.name,
+        role: agent.role,
+        title: agent.title,
+      };
+      if (issueAssigneeConfig && issueId) {
+        context.taskSummary = {
+          id: issueId,
+          identifier: issueAssigneeConfig.identifier,
+          title: issueAssigneeConfig.title,
+          description: issueAssigneeConfig.description,
+          status: issueAssigneeConfig.status,
+        };
+      }
+
       const runtimeSessionFallback = taskKey || resetTaskSession ? null : runtime.sessionId;
       const previousSessionDisplayId = truncateDisplayId(
         taskSessionForRun?.sessionDisplayId ??
