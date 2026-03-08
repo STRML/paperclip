@@ -501,7 +501,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       const unparsedErrorCode = (() => {
         if (loginMeta.requiresLogin) return "claude_auth_required";
         if (hasRateLimitEvent(proc.stdout)) return "rate_limited";
-        if (proc.signal != null && (proc.exitCode ?? 0) !== 0) return "process_killed";
+        if (proc.signal != null) return "process_killed";
         return null;
       })();
       return {
@@ -545,13 +545,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const clearSessionForMaxTurns = isClaudeMaxTurnsResult(parsed);
     const isRateLimited = isClaudeRateLimitResult(parsed) || hasRateLimitEvent(proc.stdout);
     const isMaxTurns = clearSessionForMaxTurns; // reuse the already-computed check
-    const isProcessKilled = proc.signal != null && (proc.exitCode ?? 0) !== 0;
+    const isProcessKilled = proc.signal != null;
 
     const classifiedErrorCode = (() => {
       if (loginMeta.requiresLogin) return "claude_auth_required";
       if ((proc.exitCode ?? 0) === 0 && !isRateLimited) return null;
-      if (isRateLimited) return "rate_limited";
       if (isMaxTurns) return "max_turns_exceeded";
+      if (isRateLimited) return "rate_limited";
       if (isProcessKilled) return "process_killed";
       return null;
     })();
