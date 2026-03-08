@@ -1223,12 +1223,16 @@ export function issueService(db: Db) {
         const camelSplit = normalizeAgentUrlKey(raw.replace(/([a-z])([A-Z])/g, "$1-$2"));
         if (camelSplit && camelSplit !== urlKey) tokens.add(camelSplit);
       }
-      if (tokens.size === 0) return [];
-      const rows = await db.select({ id: agents.id, name: agents.name })
+      const rows = await db.select({ id: agents.id, name: agents.name, urlKey: agents.urlKey })
         .from(agents).where(eq(agents.companyId, companyId));
+      const bodyLower = body.toLowerCase();
       return rows.filter(a => {
+        // Token-based match (handles @ceo, @founding-engineer, @CodeReviewer)
         const nameKey = normalizeAgentUrlKey(a.name);
-        return tokens.has(a.name.toLowerCase()) || (nameKey !== null && tokens.has(nameKey));
+        if (tokens.has(a.name.toLowerCase()) || (nameKey !== null && tokens.has(nameKey))) return true;
+        // Direct substring match for multi-word names (handles "@Code Reviewer")
+        if (a.name.includes(" ") && bodyLower.includes("@" + a.name.toLowerCase())) return true;
+        return false;
       }).map(a => a.id);
     },
 
