@@ -1255,6 +1255,8 @@ function RunsTab({
 
 /* ---- Run Detail (expanded) ---- */
 
+const RESUMABLE_ERROR_CODES = ["process_lost", "rate_limited"];
+
 function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: HeartbeatRun; agentRouteId: string; adapterType: string }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -1296,8 +1298,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
       queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
     },
   });
-  const resumableErrorCodes = ["process_lost", "rate_limited"];
-  const canResumeLostRun = resumableErrorCodes.includes(run.errorCode ?? "") && run.status === "failed";
+  const canResumeLostRun = RESUMABLE_ERROR_CODES.includes(run.errorCode ?? "") && run.status === "failed";
   const resumePayload = useMemo(() => {
     const payload: Record<string, unknown> = {
       resumeFromRunId: run.id,
@@ -1319,7 +1320,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType }: { run: Heartb
       const result = await agentsApi.wakeup(run.agentId, {
         source: "on_demand",
         triggerDetail: "manual",
-        reason: "resume_process_lost_run",
+        reason: run.errorCode === "rate_limited" ? "resume_rate_limited_run" : "resume_process_lost_run",
         payload: resumePayload,
       }, run.companyId);
       if (!("id" in result)) {
