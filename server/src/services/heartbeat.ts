@@ -1268,7 +1268,34 @@ export function heartbeatService(db: Db) {
     if (reaped.length > 0) {
       logger.warn({ reapedCount: reaped.length, runIds: reaped }, "reaped orphaned heartbeat runs");
     }
-    return { reaped: reaped.length, runIds: reaped };
+
+    // Reap orphaned "promoting" wakeup requests — these are stuck if the server
+    // crashed mid-promotion in promoteScheduledWakes().
+    const stuckPromoting = await db
+      .update(agentWakeupRequests)
+      .set({
+        status: "failed",
+        error: "Stuck in promoting state -- server may have restarted",
+        finishedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(agentWakeupRequests.status, "promoting"),
+          // Only reap rows older than 2 minutes to avoid racing with an active promotion
+          sql`updated_at < ${new Date(now.getTime() - 120_000)}`,
+        ),
+      )
+      .returning({ id: agentWakeupRequests.id });
+
+    if (stuckPromoting.length > 0) {
+      logger.warn(
+        { count: stuckPromoting.length, ids: stuckPromoting.map((r) => r.id) },
+        "reaped orphaned promoting wakeup requests",
+      );
+    }
+
+    return { reaped: reaped.length, runIds: reaped, reapedPromoting: stuckPromoting.length };
   }
 
   async function resumeQueuedRuns() {
