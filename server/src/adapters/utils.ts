@@ -18,6 +18,7 @@ export {
   renderTemplate,
   redactEnvForLogs,
   buildPaperclipEnv,
+  buildWakeContextSuffix,
   defaultPathForPlatform,
   ensurePathInEnv,
   ensureAbsoluteDirectory,

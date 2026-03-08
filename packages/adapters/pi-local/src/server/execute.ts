@@ -9,6 +9,7 @@ import {
   asStringArray,
   parseObject,
   buildPaperclipEnv,
+  buildWakeContextSuffix,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
@@ -283,8 +284,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     context,
   });
 
-  // User prompt is simple - just the rendered prompt template without instructions
-  const userPrompt = renderTemplate(promptTemplate, {
+  // User prompt is the rendered prompt template + wake context suffix
+  const baseUserPrompt = renderTemplate(promptTemplate, {
     agentId: agent.id,
     companyId: agent.companyId,
     runId,
@@ -293,6 +294,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     run: { id: runId, source: "on_demand" },
     context,
   });
+  const userPrompt = baseUserPrompt + buildWakeContextSuffix(context, env);
 
   const commandNotes = (() => {
     if (!resolvedInstructionsFilePath) return [] as string[];
