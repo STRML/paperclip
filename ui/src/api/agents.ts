@@ -100,8 +100,13 @@ export const agentsApi = {
     api.post<AgentHireResponse>(`/companies/${companyId}/agent-hires`, data),
   update: (id: string, data: Record<string, unknown>, companyId?: string) =>
     api.patch<Agent>(agentPath(id, companyId), data),
-  updatePermissions: (id: string, data: { canCreateAgents: boolean }, companyId?: string) =>
-    api.patch<Agent>(agentPath(id, companyId, "/permissions"), data),
+  updatePermissions: (
+    id: string,
+    data: { canCreateAgents?: boolean; grant?: string[]; revoke?: string[] },
+    companyId?: string,
+  ) => api.patch<Agent>(agentPath(id, companyId, "/permissions"), data),
+  getPermissions: (id: string, companyId?: string) =>
+    api.get<{ grantedKeys: string[] }>(agentPath(id, companyId, "/permissions")),
   pause: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/pause"), {}),
   resume: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/resume"), {}),
   terminate: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/terminate"), {}),
