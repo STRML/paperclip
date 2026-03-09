@@ -6,6 +6,7 @@ import type {
 
 export interface AgentPermissions {
   canCreateAgents: boolean;
+  grantedKeys?: string[];
 }
 
 export interface Agent {
