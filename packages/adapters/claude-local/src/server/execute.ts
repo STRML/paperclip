@@ -279,11 +279,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
   const instructionsFileDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
-  const commandNotes = instructionsFilePath
-    ? [
-        `Injected agent instructions via --append-system-prompt-file ${instructionsFilePath} (with path directive appended)`,
-      ]
-    : [];
+  const inlineInstructions = asString(config.instructions, "").trim();
 
   const runtimeConfig = await buildClaudeRuntimeConfig({
     runId,
@@ -306,17 +302,27 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const billingType = resolveClaudeBillingType(env);
   const skillsDir = await buildSkillsDir();
 
-  // When instructionsFilePath is configured, create a combined temp file that
-  // includes both the file content and the path directive, so we only need
-  // --append-system-prompt-file (Claude CLI forbids using both flags together).
+  // DB-stored instructions take precedence over instructionsFilePath.
+  // When either is present, create a combined temp file for --append-system-prompt-file
+  // (Claude CLI forbids using both flags together).
   let effectiveInstructionsFilePath = instructionsFilePath;
-  if (instructionsFilePath) {
+  if (inlineInstructions) {
+    const combinedPath = path.join(skillsDir, `agent-instructions-${runId}.md`);
+    await fs.writeFile(combinedPath, inlineInstructions, "utf-8");
+    effectiveInstructionsFilePath = combinedPath;
+  } else if (instructionsFilePath) {
     const instructionsContent = await fs.readFile(instructionsFilePath, "utf-8");
     const pathDirective = `\nThe above agent instructions were loaded from ${instructionsFilePath}. Resolve any relative file references from ${instructionsFileDir}.`;
     const combinedPath = path.join(skillsDir, "agent-instructions.md");
     await fs.writeFile(combinedPath, instructionsContent + pathDirective, "utf-8");
     effectiveInstructionsFilePath = combinedPath;
   }
+
+  const commandNotes = inlineInstructions
+    ? ["Injected agent instructions from adapterConfig.instructions (DB-stored)"]
+    : instructionsFilePath
+      ? [`Injected agent instructions via --append-system-prompt-file ${instructionsFilePath} (with path directive appended)`]
+      : [];
 
   const runtimeSessionParams = parseObject(runtime.sessionParams);
   const runtimeSessionId = asString(runtimeSessionParams.sessionId, runtime.sessionId ?? "");
