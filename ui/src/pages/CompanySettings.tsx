@@ -134,6 +134,24 @@ export function CompanySettings() {
     setSnippetCopied(false);
     setSnippetCopyDelightId(0);
   }, [selectedCompanyId]);
+  const pipelineRoutingMutation = useMutation({
+    mutationFn: async (enable: boolean) => {
+      if (!selectedCompanyId) return;
+      if (enable) {
+        await companiesApi.enablePipelineRouting(selectedCompanyId);
+      } else {
+        await companiesApi.disablePipelineRouting(selectedCompanyId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
+  });
+
+  function handleTogglePipelineRouting(value: boolean) {
+    pipelineRoutingMutation.mutate(value);
+  }
+
   const archiveMutation = useMutation({
     mutationFn: ({
       companyId,
@@ -304,6 +322,41 @@ export function CompanySettings() {
             checked={!!selectedCompany.requireBoardApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
           />
+        </div>
+      </div>
+
+      {/* Pipeline Routing */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Pipeline Routing
+        </div>
+        <div className="rounded-md border border-border px-4 py-3">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Automatically route issues through specialist agents — brainstorm, plan, implement, review, and merge.
+              </p>
+            </div>
+            <ToggleField
+              label="Enable Pipeline Routing"
+              hint="Creates TaskRouter and 7 specialist agents for your company."
+              checked={selectedCompany.pipelineRoutingEnabled ?? false}
+              onChange={handleTogglePipelineRouting}
+            />
+            {selectedCompany.pipelineRoutingEnabled && (
+              <div className="mt-2">
+                <p className="text-xs text-muted-foreground mb-2">Pipeline agents</p>
+                <div className="text-sm text-muted-foreground">
+                  <a
+                    href={`/companies/${selectedCompanyId}/agents`}
+                    className="underline underline-offset-2"
+                  >
+                    View agents →
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
