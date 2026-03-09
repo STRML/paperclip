@@ -33,4 +33,8 @@ export const companiesApi = {
     api.post<CompanyPortabilityPreviewResult>("/companies/import/preview", data),
   importBundle: (data: CompanyPortabilityImportRequest) =>
     api.post<CompanyPortabilityImportResult>("/companies/import", data),
+  enablePipelineRouting: (companyId: string) =>
+    api.post<Company>(`/companies/${companyId}/pipeline-routing/enable`, {}),
+  disablePipelineRouting: (companyId: string) =>
+    api.post<{ ok: true }>(`/companies/${companyId}/pipeline-routing/disable`, {}),
 };
