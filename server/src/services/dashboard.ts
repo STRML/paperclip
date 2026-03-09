@@ -1,6 +1,6 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { agents, approvals, companies, costEvents, issues } from "@paperclipai/db";
+import { agents, approvals, companies, costEvents, heartbeatRuns, issues } from "@paperclipai/db";
 import { notFound } from "../errors.js";
 
 export function dashboardService(db: Db) {
@@ -44,6 +44,26 @@ export function dashboardService(db: Db) {
           ),
         )
         .then((rows) => Number(rows[0]?.count ?? 0));
+
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const routerWakeupRows = await db
+        .select({
+          totalWakeups: sql<number>`count(*)`,
+          idleWakeups: sql<number>`count(*) filter (where ${heartbeatRuns.wakeupType} = 'idle')`,
+        })
+        .from(heartbeatRuns)
+        .where(
+          and(
+            eq(heartbeatRuns.companyId, companyId),
+            gte(heartbeatRuns.startedAt, sevenDaysAgo),
+            isNotNull(heartbeatRuns.wakeupType),
+          ),
+        )
+        .then((rows) => rows[0] ?? { totalWakeups: 0, idleWakeups: 0 });
+
+      const totalWakeups = Number(routerWakeupRows.totalWakeups);
+      const idleWakeups = Number(routerWakeupRows.idleWakeups);
+      const idlePercent = totalWakeups > 0 ? Math.round((idleWakeups / totalWakeups) * 100) : 0;
 
       const agentCounts: Record<string, number> = {
         active: 0,
@@ -108,6 +128,7 @@ export function dashboardService(db: Db) {
         },
         pendingApprovals,
         staleTasks,
+        routerWakeupEfficiency: { totalWakeups, idleWakeups, idlePercent },
       };
     },
   };
