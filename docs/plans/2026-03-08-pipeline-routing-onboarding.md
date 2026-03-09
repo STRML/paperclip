@@ -20,9 +20,37 @@
 - Modify: `packages/db/src/schema/agents.ts`
 - Modify: `packages/db/src/schema/companies.ts`
 
+**Step 0: Resolve migration collision**
+
+Two `0026_*` files already exist. Before generating anything, check:
+```bash
+ls packages/db/src/migrations/ | grep '^0026'
+```
+
+If you see two `0026_*` files, the last-numbered one is a draft that has NOT been applied. Rename it to the next available number AND update the Drizzle journal — both are required or `db:migrate` will fail:
+```bash
+# 1. Rename the unmerged file
+mv packages/db/src/migrations/0026_scheduled_wake.sql packages/db/src/migrations/0027_scheduled_wake.sql
+
+# 2. Update the journal to match — edit packages/db/src/migrations/meta/_journal.json
+#    Find the entry with "tag": "0026_scheduled_wake" and change its "idx" from 26 to 27
+#    and its "tag" from "0026_scheduled_wake" to "0027_scheduled_wake".
+#    Read the file first to see exact field names, then edit with the correct values.
+
+git add packages/db/src/migrations/
+git commit -m "chore(db): rename duplicate 0026 migration to 0027 to unblock generation"
+```
+
+Verify only one `0026_*` file remains and the journal entries are sequential before proceeding.
+
 **Step 1: Add `isSystem` to agents**
 
-In `packages/db/src/schema/agents.ts`, add after `permissions`:
+In `packages/db/src/schema/agents.ts`, first check the imports at the top of the file:
+```ts
+import { ..., boolean } from "drizzle-orm/pg-core";
+```
+
+Add `boolean` to the destructure if it isn't already there. Then add the column after `permissions`:
 ```ts
     isSystem: boolean("is_system").notNull().default(false),
 ```
@@ -306,18 +334,22 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { agents, companies, principalPermissionGrants } from "@paperclipai/db";
 
-// Resolve the agents/ directory relative to the repo root.
-// In dev: server CWD is typically the monorepo root or server/.
-// Override via PIPELINE_AGENTS_DIR env var for Docker deployments.
+import { fileURLToPath } from "node:url";
+
+// Resolve the agents/ directory relative to this file's location (server/src/services/).
+// Falls back to PIPELINE_AGENTS_DIR env var for Docker deployments.
+const _thisDir = path.dirname(fileURLToPath(import.meta.url));
 const AGENTS_DIR =
   process.env.PIPELINE_AGENTS_DIR ??
-  path.resolve(process.cwd(), process.cwd().endsWith("/server") ? "../agents" : "agents");
+  path.resolve(_thisDir, "../../../agents"); // server/src/services/ → repo root
 
 async function readAgentInstructions(agentDirName: string): Promise<string> {
+  const filePath = path.join(AGENTS_DIR, agentDirName, "AGENTS.md");
   try {
-    return await fs.readFile(path.join(AGENTS_DIR, agentDirName, "AGENTS.md"), "utf-8");
+    return await fs.readFile(filePath, "utf-8");
   } catch {
-    return ""; // missing AGENTS.md is not fatal
+    console.warn(`[pipeline-routing] AGENTS.md not found at ${filePath} — agent will be seeded with empty instructions`);
+    return "";
   }
 }
 
@@ -331,17 +363,20 @@ const SPECIALIST_CONFIGS = [
   { name: "DevOps Automator",   dirName: "devops-automator",   role: "devops" },
 ] as const;
 
+// db-compatible query helper: accepts the outer db or a transaction handle
+type DbOrTx = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 export function pipelineRoutingService(db: Db) {
-  async function findAgentByRole(companyId: string, role: string) {
-    const results = await db
+  async function findAgentByRole(tx: DbOrTx, companyId: string, role: string) {
+    const results = await tx
       .select()
       .from(agents)
       .where(and(eq(agents.companyId, companyId), eq(agents.role, role)));
     return results[0] ?? null;
   }
 
-  async function findAgentByName(companyId: string, name: string) {
-    const results = await db
+  async function findAgentByName(tx: DbOrTx, companyId: string, name: string) {
+    const results = await tx
       .select()
       .from(agents)
       .where(and(eq(agents.companyId, companyId), eq(agents.name, name)));
@@ -357,7 +392,8 @@ export function pipelineRoutingService(db: Db) {
 
       return await db.transaction(async (tx) => {
         // Upsert TaskRouter (match by role = task_router, unique per company)
-        let taskRouter = await findAgentByRole(companyId, "task_router");
+        // IMPORTANT: use tx for all reads inside the transaction to maintain isolation
+        let taskRouter = await findAgentByRole(tx, companyId, "task_router");
         if (!taskRouter) {
           const [created] = await tx
             .insert(agents)
@@ -405,7 +441,7 @@ export function pipelineRoutingService(db: Db) {
         const specialistIds: string[] = [];
         for (let i = 0; i < SPECIALIST_CONFIGS.length; i++) {
           const cfg = SPECIALIST_CONFIGS[i]!;
-          let specialist = await findAgentByName(companyId, cfg.name);
+          let specialist = await findAgentByName(tx, companyId, cfg.name);
           if (!specialist) {
             const [created] = await tx
               .insert(agents)
@@ -440,8 +476,8 @@ export function pipelineRoutingService(db: Db) {
     },
 
     async disable(companyId: string) {
-      const taskRouter = await findAgentByRole(companyId, "task_router");
       await db.transaction(async (tx) => {
+        const taskRouter = await findAgentByRole(tx, companyId, "task_router");
         await tx
           .update(companies)
           .set({ pipelineRoutingEnabled: false })
@@ -945,14 +981,14 @@ To remove a specialist: delete or terminate the agent normally. TaskRouter will 
 
 ## Programmatic Setup
 
-If you prefer not to use the UI, use `agents/seed.sh`:
+Use the API directly if you prefer not to use the UI:
 
 ```bash
-PAPERCLIP_COMPANY_ID=<your-company-id> \
-PAPERCLIP_API_URL=http://localhost:3100 \
-PAPERCLIP_API_TOKEN=<your-token> \
-bash agents/seed.sh
+curl -X POST http://localhost:3100/api/companies/<your-company-id>/pipeline-routing/enable \
+  -H "Authorization: Bearer <your-token>"
 ```
+
+This is equivalent to clicking "Enable Pipeline Routing" in the UI.
 
 ## Docker Deployments
 
