@@ -42,11 +42,21 @@ describe("ensurePathInEnv", () => {
     expect(result.PATH).toContain("/opt/homebrew/bin");
   });
 
-  it("includes $HOME/.local/bin when HOME is set", () => {
-    const home = process.env.HOME;
-    if (!home) return; // skip on systems without HOME
-    const env = { PATH: "/usr/bin" } as NodeJS.ProcessEnv;
-    const result = ensurePathInEnv(env);
-    expect(result.PATH).toContain(`${home}/.local/bin`);
+  it("includes $HOME/.local/bin derived from the merged env", () => {
+    const originalHome = process.env.HOME;
+    process.env.HOME = "/test/home";
+    try {
+      const env = { PATH: "/usr/bin", HOME: "/child/home" } as NodeJS.ProcessEnv;
+      const result = ensurePathInEnv(env);
+      // Should use the child's HOME from the env arg, not process.env.HOME
+      expect(result.PATH).toContain("/child/home/.local/bin");
+      expect(result.PATH).not.toContain("/test/home/.local/bin");
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+    }
   });
 });
