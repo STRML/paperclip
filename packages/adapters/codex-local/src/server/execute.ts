@@ -242,8 +242,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
   const instructionsDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
+  const inlineInstructions = asString(config.instructions, "").trim();
   let instructionsPrefix = "";
-  if (instructionsFilePath) {
+  if (inlineInstructions) {
+    instructionsPrefix = `${inlineInstructions}\n\n`;
+    await onLog("stderr", `[paperclip] Using DB-stored agent instructions (adapterConfig.instructions)\n`);
+  } else if (instructionsFilePath) {
     try {
       const instructionsContents = await fs.readFile(instructionsFilePath, "utf8");
       instructionsPrefix =
@@ -263,6 +267,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
   }
   const commandNotes = (() => {
+    if (inlineInstructions) {
+      return ["Injected agent instructions from adapterConfig.instructions (DB-stored)"];
+    }
     if (!instructionsFilePath) return [] as string[];
     if (instructionsPrefix.length > 0) {
       return [
