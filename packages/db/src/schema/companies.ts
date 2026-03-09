@@ -14,6 +14,8 @@ export const companies = pgTable(
     requireBoardApprovalForNewAgents: boolean("require_board_approval_for_new_agents")
       .notNull()
       .default(true),
+    pipelineRoutingEnabled: boolean("pipeline_routing_enabled").notNull().default(false),
+    pipelineRoutingOnboardingSkipped: boolean("pipeline_routing_onboarding_skipped").notNull().default(false),
     brandColor: text("brand_color"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
