@@ -858,7 +858,15 @@ export function agentRoutes(db: Db) {
     }
     assertCompanyAccess(req, existing.companyId);
 
-    if (req.actor.type === "agent") {
+    if (req.actor.type === "board") {
+      if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin) {
+        const allowed = await access.canUser(existing.companyId, req.actor.userId, "users:manage_permissions");
+        if (!allowed) {
+          res.status(403).json({ error: "Missing permission: users:manage_permissions" });
+          return;
+        }
+      }
+    } else if (req.actor.type === "agent") {
       const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
       if (!actorAgent || actorAgent.companyId !== existing.companyId) {
         res.status(403).json({ error: "Forbidden" });
@@ -883,7 +891,15 @@ export function agentRoutes(db: Db) {
     }
     assertCompanyAccess(req, existing.companyId);
 
-    if (req.actor.type === "agent") {
+    if (req.actor.type === "board") {
+      if (req.actor.source !== "local_implicit" && !req.actor.isInstanceAdmin) {
+        const allowed = await access.canUser(existing.companyId, req.actor.userId, "users:manage_permissions");
+        if (!allowed) {
+          res.status(403).json({ error: "Missing permission: users:manage_permissions" });
+          return;
+        }
+      }
+    } else if (req.actor.type === "agent") {
       const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
       if (!actorAgent || actorAgent.companyId !== existing.companyId) {
         res.status(403).json({ error: "Forbidden" });
