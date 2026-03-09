@@ -34,7 +34,9 @@ export const companiesApi = {
   importBundle: (data: CompanyPortabilityImportRequest) =>
     api.post<CompanyPortabilityImportResult>("/companies/import", data),
   enablePipelineRouting: (companyId: string) =>
-    api.post<Company>(`/companies/${companyId}/pipeline-routing/enable`, {}),
+    api.post<{ taskRouterId: string; specialistIds: string[] }>(`/companies/${companyId}/pipeline-routing/enable`, {}),
   disablePipelineRouting: (companyId: string) =>
     api.post<{ ok: true }>(`/companies/${companyId}/pipeline-routing/disable`, {}),
+  skipPipelineRoutingOnboarding: (companyId: string) =>
+    api.post<{ ok: true }>(`/companies/${companyId}/pipeline-routing/skip-onboarding`, {}),
 };
