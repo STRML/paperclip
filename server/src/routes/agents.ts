@@ -976,6 +976,31 @@ export function agentRoutes(db: Db) {
     res.status(201).json(agent);
   });
 
+  router.get("/agents/:id/permissions", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    assertCompanyAccess(req, existing.companyId);
+
+    if (req.actor.type === "agent") {
+      const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      if (!actorAgent || actorAgent.companyId !== existing.companyId) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      if (actorAgent.role !== "ceo") {
+        res.status(403).json({ error: "Only CEO can view permissions" });
+        return;
+      }
+    }
+
+    const grantedKeys = await svc.getGrantedPermissionKeys(id);
+    res.json({ grantedKeys });
+  });
+
   router.patch("/agents/:id/permissions", validate(updateAgentPermissionsSchema), async (req, res) => {
     const id = req.params.id as string;
     const existing = await svc.getById(id);
@@ -997,26 +1022,29 @@ export function agentRoutes(db: Db) {
       }
     }
 
-    const agent = await svc.updatePermissions(id, req.body);
-    if (!agent) {
+    const actorUserId = req.actor.type === "board" ? req.actor.userId : undefined;
+    const updatedAgent = await svc.updatePermissions(id, req.body, actorUserId);
+    if (!updatedAgent) {
       res.status(404).json({ error: "Agent not found" });
       return;
     }
 
+    const grantedKeys = await svc.getGrantedPermissionKeys(id);
+
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: agent.companyId,
+      companyId: updatedAgent.companyId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
       runId: actor.runId,
-      action: "agent.permissions_updated",
+      action: "agent.permission_grant_updated",
       entityType: "agent",
-      entityId: agent.id,
-      details: req.body,
+      entityId: updatedAgent.id,
+      details: { grant: req.body.grant ?? [], revoke: req.body.revoke ?? [] },
     });
 
-    res.json(agent);
+    res.json({ ...updatedAgent, permissions: { ...updatedAgent.permissions, grantedKeys } });
   });
 
   router.patch("/agents/:id/instructions-path", validate(updateAgentInstructionsPathSchema), async (req, res) => {
