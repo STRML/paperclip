@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, ArrowDown, FolderOpen } from "lucide-react";
+import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, ArrowDown } from "lucide-react";
 import { KanbanBoard } from "./KanbanBoard";
 import type { Issue, Project } from "@paperclipai/shared";
 
@@ -284,7 +284,7 @@ export function IssuesList({
       const groups = groupBy(filtered, (i) => i.projectId ?? "__no_project");
       return Object.keys(groups).map((key) => ({
         key,
-        label: key === "__no_project" ? "No Project" : (projectName(key) ?? key.slice(0, 8)),
+        label: key === "__no_project" ? "No Project" : (projectName(key) ?? "Unknown project"),
         items: groups[key]!,
       }));
     }
@@ -555,7 +555,7 @@ export function IssuesList({
                     ["status", "Status"],
                     ["priority", "Priority"],
                     ["assignee", "Assignee"],
-                    ["project", "Project"],
+                    ...(!projectId ? [["project", "Project"] as const] : []),
                     ["none", "None"],
                   ] as const).map(([value, label]) => (
                     <button
@@ -665,12 +665,18 @@ export function IssuesList({
                       )}
                     </div>
                   )}
-                  {issue.projectId && projectName(issue.projectId) && (
-                    <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0 max-w-[140px]">
-                      <FolderOpen className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{projectName(issue.projectId)}</span>
-                    </span>
-                  )}
+                  {(() => {
+                    const proj = issue.projectId ? projectMap.get(issue.projectId) : null;
+                    return proj && viewState.groupBy !== "project" ? (
+                      <span className="hidden lg:inline-flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 max-w-[140px]">
+                        <span
+                          className="shrink-0 h-3 w-3 rounded-sm"
+                          style={{ backgroundColor: proj.color ?? "#6366f1" }}
+                        />
+                        <span className="truncate">{proj.name}</span>
+                      </span>
+                    ) : null;
+                  })()}
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
                     {liveIssueIds?.has(issue.id) && (
                       <span className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-500/10">
