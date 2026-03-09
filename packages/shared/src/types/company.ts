@@ -10,6 +10,8 @@ export interface Company {
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
   requireBoardApprovalForNewAgents: boolean;
+  pipelineRoutingEnabled: boolean;
+  pipelineRoutingOnboardingSkipped: boolean;
   brandColor: string | null;
   createdAt: Date;
   updatedAt: Date;

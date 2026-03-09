@@ -26,6 +26,7 @@ export interface Agent {
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
   permissions: AgentPermissions;
+  isSystem: boolean;
   lastHeartbeatAt: Date | null;
   metadata: Record<string, unknown> | null;
   createdAt: Date;
