@@ -4,6 +4,7 @@ import {
   AGENT_ICON_NAMES,
   AGENT_ROLES,
   AGENT_STATUSES,
+  PERMISSION_KEYS,
 } from "../constants.js";
 import { envConfigSchema } from "./secret.js";
 
@@ -98,8 +99,12 @@ export const testAdapterEnvironmentSchema = z.object({
 
 export type TestAdapterEnvironment = z.infer<typeof testAdapterEnvironmentSchema>;
 
+const permissionKeyEnum = z.enum(PERMISSION_KEYS);
+
 export const updateAgentPermissionsSchema = z.object({
-  canCreateAgents: z.boolean(),
+  canCreateAgents: z.boolean().optional(),
+  grant: z.array(permissionKeyEnum).optional(),
+  revoke: z.array(permissionKeyEnum).optional(),
 });
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
