@@ -5,7 +5,7 @@ import { cn } from "../lib/utils";
 interface EntityRowProps {
   leading?: ReactNode;
   identifier?: string;
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   trailing?: ReactNode;
   selected?: boolean;
