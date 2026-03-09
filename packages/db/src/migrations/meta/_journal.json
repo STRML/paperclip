@@ -225,6 +225,13 @@
       "when": 1772898000000,
       "tag": "0031_scheduled_wake",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1773026642555,
+      "tag": "0032_outgoing_lifeguard",
+      "breakpoints": true
     }
   ]
 }
