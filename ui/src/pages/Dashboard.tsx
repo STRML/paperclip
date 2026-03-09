@@ -19,7 +19,7 @@ import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard } from "lucide-react";
+import { Bot, CircleDot, DollarSign, ShieldCheck, Zap, LayoutDashboard } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -210,7 +210,7 @@ export function Dashboard() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-1 sm:gap-2">
             <MetricCard
               icon={Bot}
               value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
@@ -259,6 +259,12 @@ export function Dashboard() {
                   Awaiting board review
                 </span>
               }
+            />
+            <MetricCard
+              icon={Zap}
+              value={data.routerWakeupEfficiency.totalWakeups === 0 ? "—" : `${data.routerWakeupEfficiency.idlePercent}%`}
+              label="Idle Wakeups"
+              description={<span>{data.routerWakeupEfficiency.idleWakeups} idle of {data.routerWakeupEfficiency.totalWakeups} router wakeups (7d)</span>}
             />
           </div>
 
