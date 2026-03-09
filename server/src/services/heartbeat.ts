@@ -41,6 +41,25 @@ import {
 } from "./execution-workspace-policy.js";
 import { redactCurrentUserText, redactCurrentUserValue } from "../log-redaction.js";
 
+const VALID_WAKEUP_TYPES = new Set(["idle", "productive", "initial"]);
+
+export function parseRouterMetrics(stdout: string): { wakeupType: string } | null {
+  const lines = stdout.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line.startsWith("PAPERCLIP_METRICS: ")) continue;
+    try {
+      const parsed = JSON.parse(line.slice("PAPERCLIP_METRICS: ".length));
+      if (typeof parsed?.wakeupType === "string" && VALID_WAKEUP_TYPES.has(parsed.wakeupType)) {
+        return { wakeupType: parsed.wakeupType };
+      }
+    } catch {
+      // malformed JSON — keep scanning
+    }
+  }
+  return null;
+}
+
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 10;
@@ -1927,6 +1946,9 @@ export function heartbeatService(db: Db) {
             } as Record<string, unknown>)
           : null;
 
+      const routerMetrics = parseRouterMetrics(stdoutExcerpt);
+      const wakeupType = routerMetrics?.wakeupType ?? null;
+
       await setRunStatus(run.id, status, {
         finishedAt: new Date(),
         error:
@@ -1953,6 +1975,7 @@ export function heartbeatService(db: Db) {
         logBytes: logSummary?.bytes,
         logSha256: logSummary?.sha256,
         logCompressed: logSummary?.compressed ?? false,
+        wakeupType,
       });
 
       await setWakeupStatus(run.wakeupRequestId, outcome === "succeeded" ? "completed" : status, {
