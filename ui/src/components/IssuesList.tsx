@@ -687,6 +687,8 @@ export function IssuesList({
                         {(issue.labels ?? []).length > 3 && (
                           <span className="text-[10px] text-muted-foreground">+{(issue.labels ?? []).length - 3}</span>
                         )}
+                      </span>
+                    )}
                     <Popover
                       open={assigneePickerIssueId === issue.id}
                       onOpenChange={(open) => {
