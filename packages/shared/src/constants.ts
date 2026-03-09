@@ -46,6 +46,7 @@ export const AGENT_ROLES = [
   "devops",
   "researcher",
   "general",
+  "task_router",
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
@@ -61,6 +62,7 @@ export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
   devops: "DevOps",
   researcher: "Researcher",
   general: "General",
+  task_router: "Task Router",
 };
 
 export const AGENT_ICON_NAMES = [
