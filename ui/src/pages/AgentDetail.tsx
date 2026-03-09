@@ -544,16 +544,18 @@ export function AgentDetail() {
                 <RotateCcw className="h-3 w-3" />
                 Reset Sessions
               </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
-                onClick={() => {
-                  agentAction.mutate("terminate");
-                  setMoreOpen(false);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-                Terminate
-              </button>
+              {!agent?.isSystem && (
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
+                  onClick={() => {
+                    agentAction.mutate("terminate");
+                    setMoreOpen(false);
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Terminate
+                </button>
+              )}
             </PopoverContent>
           </Popover>
         </div>
