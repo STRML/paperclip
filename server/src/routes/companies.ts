@@ -9,7 +9,7 @@ import {
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
-import { accessService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
+import { accessService, companyPortabilityService, companyService, logActivity, pipelineRoutingService } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function companyRoutes(db: Db) {
@@ -17,6 +17,7 @@ export function companyRoutes(db: Db) {
   const svc = companyService(db);
   const portability = companyPortabilityService(db);
   const access = accessService(db);
+  const pipelineRouting = pipelineRoutingService(db);
 
   router.get("/", async (req, res) => {
     assertBoard(req);
@@ -175,6 +176,62 @@ export function companyRoutes(db: Db) {
       res.status(404).json({ error: "Company not found" });
       return;
     }
+    res.json({ ok: true });
+  });
+
+  router.post("/:companyId/pipeline-routing/enable", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.getById(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+
+    const result = await pipelineRouting.enable(companyId);
+
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.pipeline_routing_enabled",
+      entityType: "company",
+      entityId: companyId,
+    });
+
+    res.json(result);
+  });
+
+  router.post("/:companyId/pipeline-routing/disable", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.getById(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+
+    await pipelineRouting.disable(companyId);
+
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.pipeline_routing_disabled",
+      entityType: "company",
+      entityId: companyId,
+    });
+
+    res.json({ ok: true });
+  });
+
+  router.post("/:companyId/pipeline-routing/skip-onboarding", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    await pipelineRouting.skipOnboarding(companyId);
     res.json({ ok: true });
   });
 

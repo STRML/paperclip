@@ -22,6 +22,11 @@ vi.mock("../services/index.js", () => ({
     canUser: vi.fn(),
     ensureMembership: vi.fn(),
   }),
+  pipelineRoutingService: () => ({
+    enable: vi.fn(),
+    disable: vi.fn(),
+    skipOnboarding: vi.fn(),
+  }),
   logActivity: vi.fn(),
 }));
 
