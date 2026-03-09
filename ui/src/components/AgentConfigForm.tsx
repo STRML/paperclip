@@ -43,6 +43,7 @@ import { ClaudeLocalAdvancedFields } from "../adapters/claude-local/config-field
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { OpenCodeLogoIcon } from "./OpenCodeLogoIcon";
+import { AgentPermissionsPanel } from "./AgentPermissionsPanel";
 
 /* ---- Create mode values ---- */
 
@@ -846,6 +847,19 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               </Field>
             </div>
           </CollapsibleSection>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Agent Permissions ---- */}
+      {!isCreate && (
+        <div className={cn(!cards && "border-b border-border")}>
+          {cards
+            ? <h3 className="text-sm font-medium mb-3">Permissions</h3>
+            : <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Permissions</div>
+          }
+          <div className={cn(cards ? "border border-border rounded-lg p-4" : "px-4 pb-3")}>
+            <AgentPermissionsPanel agentId={props.agent.id} companyId={selectedCompanyId ?? undefined} />
           </div>
         </div>
       )}

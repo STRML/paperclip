@@ -10,6 +10,7 @@ import {
   agentWakeupRequests,
   heartbeatRunEvents,
   heartbeatRuns,
+  principalPermissionGrants,
 } from "@paperclipai/db";
 import { isUuidLike, normalizeAgentUrlKey } from "@paperclipai/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
@@ -444,21 +445,69 @@ export function agentService(db: Db) {
       return updated ? normalizeAgentRow(updated) : null;
     },
 
-    updatePermissions: async (id: string, permissions: { canCreateAgents: boolean }) => {
+    updatePermissions: async (
+      id: string,
+      data: { canCreateAgents?: boolean; grant?: string[]; revoke?: string[] },
+      actorUserId?: string,
+    ) => {
       const existing = await getById(id);
       if (!existing) return null;
 
-      const updated = await db
-        .update(agents)
-        .set({
-          permissions: normalizeAgentPermissions(permissions, existing.role),
-          updatedAt: new Date(),
-        })
-        .where(eq(agents.id, id))
-        .returning()
-        .then((rows) => rows[0] ?? null);
+      if (data.canCreateAgents !== undefined) {
+        const updated = await db
+          .update(agents)
+          .set({
+            permissions: normalizeAgentPermissions({ canCreateAgents: data.canCreateAgents }, existing.role),
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, id))
+          .returning()
+          .then((rows) => rows[0] ?? null);
 
-      return updated ? normalizeAgentRow(updated) : null;
+        if (!updated) return null;
+      }
+
+      if (data.grant?.length) {
+        await db
+          .insert(principalPermissionGrants)
+          .values(
+            data.grant.map((key) => ({
+              companyId: existing.companyId,
+              principalType: "agent" as const,
+              principalId: id,
+              permissionKey: key,
+              grantedByUserId: actorUserId ?? null,
+            }))
+          )
+          .onConflictDoNothing();
+      }
+
+      if (data.revoke?.length) {
+        await db
+          .delete(principalPermissionGrants)
+          .where(
+            and(
+              eq(principalPermissionGrants.principalType, "agent"),
+              eq(principalPermissionGrants.principalId, id),
+              inArray(principalPermissionGrants.permissionKey, data.revoke),
+            ),
+          );
+      }
+
+      return getById(id);
+    },
+
+    getGrantedPermissionKeys: async (agentId: string): Promise<string[]> => {
+      const grants = await db
+        .select({ permissionKey: principalPermissionGrants.permissionKey })
+        .from(principalPermissionGrants)
+        .where(
+          and(
+            eq(principalPermissionGrants.principalType, "agent"),
+            eq(principalPermissionGrants.principalId, agentId),
+          ),
+        );
+      return grants.map((g) => g.permissionKey);
     },
 
     listConfigRevisions: async (id: string) =>
