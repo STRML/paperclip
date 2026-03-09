@@ -453,46 +453,44 @@ export function agentService(db: Db) {
       const existing = await getById(id);
       if (!existing) return null;
 
-      if (data.canCreateAgents !== undefined) {
-        const updated = await db
-          .update(agents)
-          .set({
-            permissions: normalizeAgentPermissions({ canCreateAgents: data.canCreateAgents }, existing.role),
-            updatedAt: new Date(),
-          })
-          .where(eq(agents.id, id))
-          .returning()
-          .then((rows) => rows[0] ?? null);
+      await db.transaction(async (tx) => {
+        if (data.canCreateAgents !== undefined) {
+          await tx
+            .update(agents)
+            .set({
+              permissions: normalizeAgentPermissions({ canCreateAgents: data.canCreateAgents }, existing.role),
+              updatedAt: new Date(),
+            })
+            .where(eq(agents.id, id));
+        }
 
-        if (!updated) return null;
-      }
+        if (data.grant?.length) {
+          await tx
+            .insert(principalPermissionGrants)
+            .values(
+              data.grant.map((key) => ({
+                companyId: existing.companyId,
+                principalType: "agent" as const,
+                principalId: id,
+                permissionKey: key,
+                grantedByUserId: actorUserId ?? null,
+              }))
+            )
+            .onConflictDoNothing();
+        }
 
-      if (data.grant?.length) {
-        await db
-          .insert(principalPermissionGrants)
-          .values(
-            data.grant.map((key) => ({
-              companyId: existing.companyId,
-              principalType: "agent" as const,
-              principalId: id,
-              permissionKey: key,
-              grantedByUserId: actorUserId ?? null,
-            }))
-          )
-          .onConflictDoNothing();
-      }
-
-      if (data.revoke?.length) {
-        await db
-          .delete(principalPermissionGrants)
-          .where(
-            and(
-              eq(principalPermissionGrants.principalType, "agent"),
-              eq(principalPermissionGrants.principalId, id),
-              inArray(principalPermissionGrants.permissionKey, data.revoke),
-            ),
-          );
-      }
+        if (data.revoke?.length) {
+          await tx
+            .delete(principalPermissionGrants)
+            .where(
+              and(
+                eq(principalPermissionGrants.principalType, "agent"),
+                eq(principalPermissionGrants.principalId, id),
+                inArray(principalPermissionGrants.permissionKey, data.revoke),
+              ),
+            );
+        }
+      });
 
       return getById(id);
     },

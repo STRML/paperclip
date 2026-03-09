@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { ToggleField } from "./agent-config-primitives";
+import { Skeleton } from "./ui/skeleton";
 
 const PERMISSION_LABELS: Record<string, string> = {
   "agents:create": "Create Agents",
@@ -39,6 +40,9 @@ export function AgentPermissionsPanel({ agentId, companyId }: AgentPermissionsPa
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent-permissions", agentId] });
     },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-permissions", agentId] });
+    },
   });
 
   const toggle = (key: string, currentlyGranted: boolean) => {
@@ -49,7 +53,15 @@ export function AgentPermissionsPanel({ agentId, companyId }: AgentPermissionsPa
     }
   };
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-8 w-full" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
