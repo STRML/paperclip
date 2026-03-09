@@ -16,7 +16,6 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   renderTemplate,
-  buildWakeContextSuffix,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "../index.js";

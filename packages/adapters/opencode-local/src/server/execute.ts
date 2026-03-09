@@ -15,7 +15,6 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   renderTemplate,
-  buildWakeContextSuffix,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
