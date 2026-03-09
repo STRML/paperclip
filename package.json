@@ -9,6 +9,7 @@
     "dev:server": "pnpm --filter @paperclipai/server dev",
     "dev:ui": "pnpm --filter @paperclipai/ui dev",
     "dev:prod": "node scripts/dev-prod.mjs",
+    "prod": "pnpm build && NODE_ENV=production SERVE_UI=true node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest",
