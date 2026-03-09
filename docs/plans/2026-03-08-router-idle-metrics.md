@@ -4,7 +4,7 @@
 
 **Goal:** Add `wakeup_type` tracking to `heartbeat_runs` and expose idle wakeup% on the dashboard as a MetricCard.
 
-**Architecture:** TaskRouter emits `PAPERCLIP_METRICS: <json>` in stdout. Server parses it at run completion, stores `wakeup_type` in a new column. Dashboard query aggregates idle vs total for last 7 days.
+**Architecture:** TaskRouter emits `PAPERCLIP_METRICS: <json>` in stdout. Server parses it from `stdoutExcerpt` at run completion, stores `wakeup_type` in a new column. Dashboard query aggregates idle vs total for last 7 days.
 
 **Tech Stack:** Drizzle ORM, PostgreSQL, Express, React, TanStack Query, TypeScript
 
@@ -20,13 +20,8 @@
 In `heartbeat_runs.ts`, add after `errorCode`:
 
 ```ts
-wakeupType: text("wakeup_type"),
-```
-
-Full context (lines 32–36):
-```ts
     errorCode: text("error_code"),
-    wakeupType: text("wakeup_type"),  // ← add this
+    wakeupType: text("wakeup_type"),  // ← add this line
     externalRunId: text("external_run_id"),
 ```
 
@@ -38,20 +33,24 @@ pnpm build
 DATABASE_URL=postgresql://localhost:5432/paperclip pnpm drizzle-kit generate
 ```
 
-Expected: creates `src/migrations/0026_<name>.sql` with `ALTER TABLE "heartbeat_runs" ADD COLUMN "wakeup_type" text;`
+Expected: creates a new `src/migrations/XXXX_<name>.sql`. Note the actual filename — do not assume the number.
 
 **Step 3: Verify migration file content**
 
 ```bash
-cat packages/db/src/migrations/0026_*.sql
+ls packages/db/src/migrations/ | tail -1
 ```
 
-Expected output contains: `ALTER TABLE "heartbeat_runs" ADD COLUMN "wakeup_type" text;`
+Then read that file and confirm it contains:
+```sql
+ALTER TABLE "heartbeat_runs" ADD COLUMN "wakeup_type" text;
+```
 
-**Step 4: Commit**
+**Step 4: Commit (use the actual generated filename)**
 
 ```bash
-git add packages/db/src/schema/heartbeat_runs.ts packages/db/src/migrations/0026_*.sql
+git add packages/db/src/schema/heartbeat_runs.ts
+git add packages/db/src/migrations/<actual-generated-filename>.sql
 git commit -m "feat(db): add wakeup_type column to heartbeat_runs"
 ```
 
@@ -61,10 +60,11 @@ git commit -m "feat(db): add wakeup_type column to heartbeat_runs"
 
 **Files:**
 - Modify: `server/src/services/heartbeat.ts`
+- Create: `server/src/__tests__/router-metrics.test.ts`
 
 **Step 1: Write the failing test**
 
-Add to `server/src/__tests__/router-metrics.test.ts`:
+Create `server/src/__tests__/router-metrics.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -80,18 +80,29 @@ describe("parseRouterMetrics", () => {
   });
 
   it("parses wakeupType from PAPERCLIP_METRICS line", () => {
-    const stdout = 'Assigning agent.\n\nPAPERCLIP_METRICS: {"wakeupType":"idle","issueId":"abc"}\n';
-    expect(parseRouterMetrics(stdout)).toEqual({ wakeupType: "idle", issueId: "abc" });
+    const stdout = 'Done.\n\nPAPERCLIP_METRICS: {"wakeupType":"idle","issueId":"abc"}\n';
+    expect(parseRouterMetrics(stdout)?.wakeupType).toBe("idle");
   });
 
   it("picks the last PAPERCLIP_METRICS line if multiple", () => {
-    const stdout = 'PAPERCLIP_METRICS: {"wakeupType":"productive"}\nmore output\nPAPERCLIP_METRICS: {"wakeupType":"idle"}\n';
-    expect(parseRouterMetrics(stdout)).toEqual({ wakeupType: "idle" });
+    const stdout =
+      'PAPERCLIP_METRICS: {"wakeupType":"productive"}\nmore output\nPAPERCLIP_METRICS: {"wakeupType":"idle"}\n';
+    expect(parseRouterMetrics(stdout)?.wakeupType).toBe("idle");
   });
 
   it("returns null for malformed JSON", () => {
-    const stdout = "PAPERCLIP_METRICS: not-json\n";
-    expect(parseRouterMetrics(stdout)).toBeNull();
+    expect(parseRouterMetrics("PAPERCLIP_METRICS: not-json\n")).toBeNull();
+  });
+
+  it("returns null for wakeupType outside allowed set", () => {
+    expect(parseRouterMetrics('PAPERCLIP_METRICS: {"wakeupType":"bad_value"}\n')).toBeNull();
+  });
+
+  it("accepts all valid wakeupType values", () => {
+    for (const type of ["idle", "productive", "initial"]) {
+      const stdout = `PAPERCLIP_METRICS: {"wakeupType":"${type}"}\n`;
+      expect(parseRouterMetrics(stdout)?.wakeupType).toBe(type);
+    }
   });
 });
 ```
@@ -99,49 +110,57 @@ describe("parseRouterMetrics", () => {
 **Step 2: Run test to verify it fails**
 
 ```bash
-cd server
-pnpm test router-metrics
+cd server && pnpm test router-metrics
 ```
 
 Expected: FAIL with "parseRouterMetrics is not exported"
 
 **Step 3: Add `parseRouterMetrics` to heartbeat.ts**
 
-Add near the top of `server/src/services/heartbeat.ts` (after imports, before constants):
+Add after the import block in `server/src/services/heartbeat.ts`, before the first constant:
 
 ```ts
-export function parseRouterMetrics(stdout: string): Record<string, unknown> | null {
+const VALID_WAKEUP_TYPES = new Set(["idle", "productive", "initial"]);
+
+export function parseRouterMetrics(stdout: string): { wakeupType: string } | null {
   const lines = stdout.split(/\r?\n/);
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line.startsWith("PAPERCLIP_METRICS: ")) continue;
     try {
       const parsed = JSON.parse(line.slice("PAPERCLIP_METRICS: ".length));
-      if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, unknown>;
+      if (typeof parsed?.wakeupType === "string" && VALID_WAKEUP_TYPES.has(parsed.wakeupType)) {
+        return { wakeupType: parsed.wakeupType };
+      }
     } catch {
-      // malformed, keep scanning
+      // malformed JSON — keep scanning
     }
   }
   return null;
 }
 ```
 
-**Step 4: Wire it into run completion**
+**Step 4: Wire into run completion — use `stdoutExcerpt`**
 
-In `server/src/services/heartbeat.ts`, find the `db.update(heartbeatRuns)` call around line 1383 that sets `resultJson`. Add `wakeupType` extraction before the update:
+In `server/src/services/heartbeat.ts`, locate the `setRunStatus` call where the run is finalized (around line 1394). The local variable `stdoutExcerpt` is in scope — it holds the raw process stdout captured via `onLog("stdout", chunk)`.
+
+**IMPORTANT:** Use `stdoutExcerpt`, NOT `adapterResult.resultJson?.stdout`.
+For successful `claude_local` runs, `resultJson` is the structured Claude JSON output — its `.stdout` field is `undefined`. `stdoutExcerpt` is the correct source.
+
+Add immediately before the `setRunStatus` call:
 
 ```ts
-const routerStdout =
-  typeof adapterResult.resultJson?.stdout === "string" ? adapterResult.resultJson.stdout : "";
-const routerMetrics = parseRouterMetrics(routerStdout);
-const wakeupType =
-  typeof routerMetrics?.wakeupType === "string" ? routerMetrics.wakeupType : null;
+const routerMetrics = parseRouterMetrics(stdoutExcerpt);
+const wakeupType = routerMetrics?.wakeupType ?? null;
 ```
 
-Then add to the `.set({...})` object:
+Add `wakeupType` to the patch object passed to `setRunStatus`:
 
 ```ts
-wakeupType,
+await setRunStatus(run.id, status, {
+  // ... existing fields ...
+  wakeupType,
+});
 ```
 
 **Step 5: Run tests**
@@ -152,13 +171,13 @@ pnpm test router-metrics
 pnpm typecheck
 ```
 
-Expected: PASS, no type errors
+Expected: all PASS, no type errors.
 
 **Step 6: Commit**
 
 ```bash
 git add server/src/services/heartbeat.ts server/src/__tests__/router-metrics.test.ts
-git commit -m "feat(heartbeat): parse and store router wakeup_type from run stdout"
+git commit -m "feat(heartbeat): parse and store router wakeup_type from stdoutExcerpt"
 ```
 
 ---
@@ -168,50 +187,9 @@ git commit -m "feat(heartbeat): parse and store router wakeup_type from run stdo
 **Files:**
 - Modify: `packages/shared/src/types/dashboard.ts`
 - Modify: `server/src/services/dashboard.ts`
+- Create: `server/src/__tests__/dashboard-router-metrics.test.ts`
 
-**Step 1: Write the failing test**
-
-Add to `server/src/__tests__/dashboard-router-metrics.test.ts`:
-
-```ts
-import { describe, it, expect, beforeEach } from "vitest";
-// This is an integration-style test — mock the DB response
-// to verify the query logic produces the right shape.
-// (Full DB tests live in the heartbeat test suite.)
-
-import { describe, it, expect } from "vitest";
-
-// Validate the shape of routerWakeupEfficiency in the summary response.
-it("routerWakeupEfficiency has correct shape when no router runs", () => {
-  const efficiency = { totalWakeups: 0, idleWakeups: 0, idlePercent: 0 };
-  expect(efficiency.idlePercent).toBe(0);
-  expect(efficiency.totalWakeups).toBeGreaterThanOrEqual(0);
-});
-
-it("idlePercent is 0 when totalWakeups is 0 (no division by zero)", () => {
-  const total = 0;
-  const idle = 0;
-  const percent = total > 0 ? Math.round((idle / total) * 100) : 0;
-  expect(percent).toBe(0);
-});
-
-it("idlePercent rounds correctly", () => {
-  const total = 3;
-  const idle = 1;
-  const percent = total > 0 ? Math.round((idle / total) * 100) : 0;
-  expect(percent).toBe(33);
-});
-```
-
-**Step 2: Run test to verify it passes already (logic test)**
-
-```bash
-cd server && pnpm test dashboard-router-metrics
-```
-
-Expected: PASS (these are pure logic tests; they validate the math we're about to implement)
-
-**Step 3: Update `DashboardSummary` type**
+**Step 1: Update `DashboardSummary` type**
 
 In `packages/shared/src/types/dashboard.ts`, add:
 
@@ -226,14 +204,58 @@ export interface DashboardSummary {
 }
 ```
 
-**Step 4: Add query to dashboard service**
+**Step 2: Write a test for the idlePercent computation**
 
-In `server/src/services/dashboard.ts`, add after the `staleTasks` query:
+Create `server/src/__tests__/dashboard-router-metrics.test.ts`:
 
 ```ts
-import { heartbeatRuns } from "@paperclipai/db";  // add to existing import
+import { describe, it, expect } from "vitest";
 
-// inside summary():
+describe("routerWakeupEfficiency idlePercent", () => {
+  // Validates the exact formula used in dashboard.ts — if someone changes the
+  // formula in the service, this test catches the regression.
+  function compute(total: number, idle: number) {
+    return total > 0 ? Math.round((idle / total) * 100) : 0;
+  }
+
+  it("returns 0 when totalWakeups is 0 (no division by zero)", () => {
+    expect(compute(0, 0)).toBe(0);
+  });
+
+  it("computes correct percentage", () => {
+    expect(compute(10, 3)).toBe(30);
+  });
+
+  it("rounds to nearest integer", () => {
+    expect(compute(3, 1)).toBe(33);
+  });
+
+  it("returns 100 when all wakeups are idle", () => {
+    expect(compute(5, 5)).toBe(100);
+  });
+});
+```
+
+**Step 3: Run test**
+
+```bash
+cd server && pnpm test dashboard-router-metrics
+```
+
+Expected: PASS
+
+**Step 4: Add query to dashboard service**
+
+In `server/src/services/dashboard.ts`:
+
+Add `heartbeatRuns` to the existing import:
+```ts
+import { agents, approvals, companies, costEvents, issues, heartbeatRuns } from "@paperclipai/db";
+```
+
+Inside `summary()`, after the `staleTasks` query, add:
+
+```ts
 const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 const routerWakeupRows = await db
   .select({
@@ -245,7 +267,7 @@ const routerWakeupRows = await db
     and(
       eq(heartbeatRuns.companyId, companyId),
       gte(heartbeatRuns.startedAt, sevenDaysAgo),
-      sql`${heartbeatRuns.wakeupType} is not null`,
+      isNotNull(heartbeatRuns.wakeupType),
     ),
   )
   .then((rows) => rows[0] ?? { totalWakeups: 0, idleWakeups: 0 });
@@ -255,25 +277,17 @@ const idleWakeups = Number(routerWakeupRows.idleWakeups);
 const idlePercent = totalWakeups > 0 ? Math.round((idleWakeups / totalWakeups) * 100) : 0;
 ```
 
+Add `isNotNull` to the drizzle-orm import at the top of `dashboard.ts`:
+```ts
+import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
+```
+
 Add to the `return` object:
-
 ```ts
-routerWakeupEfficiency: {
-  totalWakeups,
-  idleWakeups,
-  idlePercent,
-},
+routerWakeupEfficiency: { totalWakeups, idleWakeups, idlePercent },
 ```
 
-**Step 5: Add `heartbeatRuns` to dashboard service import**
-
-`packages/db` already exports `heartbeatRuns`. Add it to the import at the top of `dashboard.ts`:
-
-```ts
-import { agents, approvals, companies, costEvents, issues, heartbeatRuns } from "@paperclipai/db";
-```
-
-**Step 6: Typecheck**
+**Step 5: Typecheck**
 
 ```bash
 cd server && pnpm typecheck
@@ -282,7 +296,7 @@ cd packages/shared && pnpm typecheck
 
 Expected: no errors
 
-**Step 7: Commit**
+**Step 6: Commit**
 
 ```bash
 git add packages/shared/src/types/dashboard.ts server/src/services/dashboard.ts server/src/__tests__/dashboard-router-metrics.test.ts
@@ -296,31 +310,20 @@ git commit -m "feat(dashboard): add routerWakeupEfficiency to summary query"
 **Files:**
 - Modify: `ui/src/pages/Dashboard.tsx`
 
-**Step 1: Identify where to add**
-
-The current 4-card grid is at line 212:
-```tsx
-<div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
-```
-
-We add a 5th card. Change grid to `xl:grid-cols-5` and add after the Pending Approvals card.
-
-**Step 2: Add import**
-
-Add `Zap` to the lucide-react import in `Dashboard.tsx`:
+**Step 1: Add `Zap` to lucide-react import**
 
 ```ts
 import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, Zap } from "lucide-react";
 ```
 
-**Step 3: Update grid and add card**
+**Step 2: Update grid and add card**
 
-Change the grid classname:
+Change the 4-card grid classname to 5 columns:
 ```tsx
 <div className="grid grid-cols-2 xl:grid-cols-5 gap-1 sm:gap-2">
 ```
 
-Add after the existing `MetricCard` for Pending Approvals:
+Add after the existing Pending Approvals `MetricCard`:
 
 ```tsx
 <MetricCard
@@ -340,19 +343,21 @@ Add after the existing `MetricCard` for Pending Approvals:
 />
 ```
 
-**Step 4: Typecheck**
+**Step 3: Typecheck**
 
 ```bash
 cd ui && pnpm typecheck
 ```
 
-Expected: no errors (type flows from `DashboardSummary`)
+Expected: no errors
 
-**Step 5: Smoke-test visually**
+**Step 4: Smoke-test visually**
 
-Start dev server, navigate to Dashboard. When no TaskRouter runs exist, card shows "—". When runs exist with `wakeup_type` set, shows percentage.
+Start dev server (`pnpm dev`), navigate to Dashboard.
+- No TaskRouter runs: card shows "—"
+- With runs having `wakeup_type` set: shows percentage
 
-**Step 6: Commit**
+**Step 5: Commit**
 
 ```bash
 git add ui/src/pages/Dashboard.tsx
@@ -369,7 +374,7 @@ git commit -m "feat(ui): add idle wakeup% MetricCard to dashboard"
 DATABASE_URL=postgresql://localhost:5432/paperclip pnpm --filter @paperclipai/db db:migrate
 ```
 
-Expected: "Applying 1 pending migration(s)... Migrations complete"
+Expected: "Migrations complete"
 
 **Step 2: Verify column exists**
 
@@ -379,31 +384,22 @@ psql $DATABASE_URL -c "\d heartbeat_runs" | grep wakeup_type
 
 Expected: `wakeup_type | text | ...`
 
-**Step 3: Run full test suite**
+**Step 3: Full test suite**
 
 ```bash
-pnpm test
-pnpm typecheck
+pnpm test && pnpm typecheck
 ```
 
 Expected: all pass
-
-**Step 4: Final commit (if any fixups needed)**
-
-```bash
-git add -p
-git commit -m "fix(router-metrics): <describe fixup>"
-```
 
 ---
 
 ## Cherry-pick instructions
 
-This plan produces 5 clean commits:
+4 clean commits in order:
 1. `feat(db): add wakeup_type column to heartbeat_runs`
-2. `feat(heartbeat): parse and store router wakeup_type from run stdout`
+2. `feat(heartbeat): parse and store router wakeup_type from stdoutExcerpt`
 3. `feat(dashboard): add routerWakeupEfficiency to summary query`
 4. `feat(ui): add idle wakeup% MetricCard to dashboard`
-5. (optional fixup)
 
-Cherry-pick in order: `git cherry-pick <sha1> <sha2> <sha3> <sha4>`
+This plan must be merged **before** the multi-agent-task-routing plan (migration ordering).
