@@ -53,7 +53,7 @@ import {
   X
 } from "lucide-react";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 type AdapterType =
   | "claude_local"
   | "codex_local"
@@ -536,6 +536,58 @@ export function OnboardingWizard() {
     }
   }
 
+  function handleLaunch() {
+    if (!createdAgentId) return;
+    const company = companies.find((c) => c.id === createdCompanyId);
+    if (company?.pipelineRoutingEnabled || company?.pipelineRoutingOnboardingSkipped) {
+      finishWizard();
+    } else {
+      setStep(5);
+    }
+  }
+
+  function finishWizard() {
+    reset();
+    closeOnboarding();
+    if (createdCompanyPrefix && createdIssueRef) {
+      navigate(`/${createdCompanyPrefix}/issues/${createdIssueRef}`);
+      return;
+    }
+    if (createdCompanyPrefix) {
+      navigate(`/${createdCompanyPrefix}/dashboard`);
+      return;
+    }
+    navigate("/dashboard");
+  }
+
+  async function handleEnablePipelineRouting() {
+    if (!createdCompanyId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await companiesApi.enablePipelineRouting(createdCompanyId);
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(createdCompanyId) });
+      finishWizard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to enable pipeline routing");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSkipPipelineRouting() {
+    if (!createdCompanyId) return;
+    setLoading(true);
+    try {
+      await companiesApi.skipPipelineRoutingOnboarding(createdCompanyId);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+      finishWizard();
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -543,6 +595,7 @@ export function OnboardingWizard() {
       else if (step === 2 && agentName.trim()) handleStep2Next();
       else if (step === 3 && taskTitle.trim()) handleStep3Next();
       else if (step === 4) handleLaunch();
+      else if (step === 5) handleEnablePipelineRouting();
     }
   }
 
@@ -585,7 +638,8 @@ export function OnboardingWizard() {
                     { step: 1 as Step, label: "Company", icon: Building2 },
                     { step: 2 as Step, label: "Agent", icon: Bot },
                     { step: 3 as Step, label: "Task", icon: ListTodo },
-                    { step: 4 as Step, label: "Launch", icon: Rocket }
+                    { step: 4 as Step, label: "Launch", icon: Rocket },
+                    { step: 5 as Step, label: "Routing", icon: Sparkles },
                   ] as const
                 ).map(({ step: s, label, icon: Icon }) => (
                   <button
@@ -1221,6 +1275,44 @@ export function OnboardingWizard() {
                 </div>
               )}
 
+              {step === 5 && (
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-semibold">Automate your issue pipeline</h2>
+                    <p className="text-sm text-muted-foreground">
+                      TaskRouter assigns issues to specialist agents — brainstorm, plan, implement, review, and merge — automatically.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 flex-wrap text-xs text-muted-foreground font-mono bg-muted/40 rounded-md px-3 py-2">
+                    {["triage", "brainstorm?", "plan?", "code", "review", "PR", "merge"].map((stage, i, arr) => (
+                      <span key={stage} className="flex items-center gap-1">
+                        <span className={stage.endsWith("?") ? "opacity-60" : ""}>{stage}</span>
+                        {i < arr.length - 1 && <span className="opacity-40">&rarr;</span>}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full"
+                      disabled={loading}
+                      onClick={handleEnablePipelineRouting}
+                    >
+                      {loading ? "Enabling..." : "Enable Pipeline Routing"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full"
+                      disabled={loading}
+                      onClick={handleSkipPipelineRouting}
+                    >
+                      Skip for now
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Error */}
               {error && (
                 <div className="mt-3">
@@ -1231,7 +1323,7 @@ export function OnboardingWizard() {
               {/* Footer navigation */}
               <div className="flex items-center justify-between mt-8">
                 <div>
-                  {step > 1 && step > (onboardingOptions.initialStep ?? 1) && (
+                  {step > 1 && step < 5 && step > (onboardingOptions.initialStep ?? 1) && (
                     <Button
                       variant="ghost"
                       size="sm"
