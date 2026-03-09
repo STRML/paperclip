@@ -18,4 +18,10 @@ export interface DashboardSummary {
     monthUtilizationPercent: number;
   };
   pendingApprovals: number;
+  staleTasks: number;
+  routerWakeupEfficiency: {
+    totalWakeups: number;
+    idleWakeups: number;
+    idlePercent: number;
+  };
 }
