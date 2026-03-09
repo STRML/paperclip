@@ -97,10 +97,18 @@ export type TestAdapterEnvironment = z.infer<typeof testAdapterEnvironmentSchema
 
 const permissionKeyEnum = z.enum(PERMISSION_KEYS);
 
-export const updateAgentPermissionsSchema = z.object({
-  canCreateAgents: z.boolean().optional(),
-  grant: z.array(permissionKeyEnum).optional(),
-  revoke: z.array(permissionKeyEnum).optional(),
-});
+export const updateAgentPermissionsSchema = z
+  .object({
+    canCreateAgents: z.boolean().optional(),
+    grant: z.array(permissionKeyEnum).optional(),
+    revoke: z.array(permissionKeyEnum).optional(),
+  })
+  .refine(
+    (v) =>
+      v.canCreateAgents !== undefined ||
+      (v.grant?.length ?? 0) > 0 ||
+      (v.revoke?.length ?? 0) > 0,
+    { message: "At least one of canCreateAgents, grant, or revoke must be provided" },
+  );
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
