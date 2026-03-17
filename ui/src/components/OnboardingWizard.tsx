@@ -522,27 +522,16 @@ export function OnboardingWizard() {
       }
 
       setSelectedCompanyId(createdCompanyId);
-      reset();
-      closeOnboarding();
-      navigate(
-        createdCompanyPrefix
-          ? `/${createdCompanyPrefix}/issues/${issueRef}`
-          : `/issues/${issueRef}`
-      );
+      const company = companies.find((c) => c.id === createdCompanyId);
+      if (company?.pipelineRoutingEnabled || company?.pipelineRoutingOnboardingSkipped) {
+        finishWizard();
+      } else {
+        setStep(5);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task");
     } finally {
       setLoading(false);
-    }
-  }
-
-  function handleLaunch() {
-    if (!createdAgentId) return;
-    const company = companies.find((c) => c.id === createdCompanyId);
-    if (company?.pipelineRoutingEnabled || company?.pipelineRoutingOnboardingSkipped) {
-      finishWizard();
-    } else {
-      setStep(5);
     }
   }
 

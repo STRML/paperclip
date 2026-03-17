@@ -164,6 +164,8 @@ const dashboard: DashboardSummary = {
     monthUtilizationPercent: 90,
   },
   pendingApprovals: 1,
+  staleTasks: 0,
+  routerWakeupEfficiency: { totalWakeups: 0, idleWakeups: 0, idlePercent: 0 },
 };
 
 describe("inbox helpers", () => {

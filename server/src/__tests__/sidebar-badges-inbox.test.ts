@@ -96,7 +96,7 @@ describe("GET /companies/:companyId/sidebar-badges — inbox formula", () => {
     const res = await request(app).get("/api/companies/company-1/sidebar-badges");
 
     expect(res.status).toBe(200);
-    // inbox = failedRuns(1) + alertsCount(0) + staleIssueCount(0) + joinRequestCount(0) + approvals(2) = 3
+    // inbox = failedRuns(1) + alertsCount(0) + joinRequestCount(0) + approvals(2) = 3
     expect(res.body.inbox).toBe(3);
     expect(res.body.approvals).toBe(2);
   });
@@ -128,8 +128,8 @@ describe("GET /companies/:companyId/sidebar-badges — inbox formula", () => {
     const res = await request(app).get("/api/companies/company-1/sidebar-badges");
 
     expect(res.status).toBe(200);
-    // inbox = failedRuns(1) + alertsCount(1 for budget) + staleIssueCount(4) + joinRequestCount(3) + approvals(2) = 11
-    expect(res.body.inbox).toBe(11);
+    // inbox = failedRuns(1) + alertsCount(1 for budget) + joinRequestCount(3) + approvals(2) = 7
+    expect(res.body.inbox).toBe(7);
   });
 
   it("does not drop approvals from the inbox count (regression test for overwrite bug)", async () => {
